@@ -1,0 +1,21 @@
+graph "Program ast" {
+	"n97910034-71ac-4b5f-b130-afa6b0d3165d" [label=expression]
+	"n8a21ceea-8d85-47ee-b872-a4f61dc50252" [label=binary_operation]
+	"n97910034-71ac-4b5f-b130-afa6b0d3165d" -- "n8a21ceea-8d85-47ee-b872-a4f61dc50252"
+	"ndac574e3-6a34-42a8-b06c-f78b80871575" [label=expression]
+	"n8a21ceea-8d85-47ee-b872-a4f61dc50252" -- "ndac574e3-6a34-42a8-b06c-f78b80871575"
+	"n5c660238-d7d1-42b0-9e7d-cbf8ec36f9ec" [label=NUMBER]
+	"ndac574e3-6a34-42a8-b06c-f78b80871575" -- "n5c660238-d7d1-42b0-9e7d-cbf8ec36f9ec"
+	"n91b55c3f-9b3c-4774-808e-b093fb65631d" [label=1]
+	"n5c660238-d7d1-42b0-9e7d-cbf8ec36f9ec" -- "n91b55c3f-9b3c-4774-808e-b093fb65631d"
+	"nc97a332b-07ba-4fd0-81e0-1b14a87c6318" [label=PLUS_SIGN]
+	"n8a21ceea-8d85-47ee-b872-a4f61dc50252" -- "nc97a332b-07ba-4fd0-81e0-1b14a87c6318"
+	"n7eca2747-252f-4f16-bcc1-2ebba9020166" [label="+"]
+	"nc97a332b-07ba-4fd0-81e0-1b14a87c6318" -- "n7eca2747-252f-4f16-bcc1-2ebba9020166"
+	"n6b88038f-6ed1-4dd8-9b97-b5301767dade" [label=expression]
+	"n8a21ceea-8d85-47ee-b872-a4f61dc50252" -- "n6b88038f-6ed1-4dd8-9b97-b5301767dade"
+	"n8183ccdb-2a1e-4609-a9e3-66438107ee1f" [label=NUMBER]
+	"n6b88038f-6ed1-4dd8-9b97-b5301767dade" -- "n8183ccdb-2a1e-4609-a9e3-66438107ee1f"
+	"ne79cb747-ec9a-4023-8073-5950ed4a71d2" [label=8]
+	"n8183ccdb-2a1e-4609-a9e3-66438107ee1f" -- "ne79cb747-ec9a-4023-8073-5950ed4a71d2"
+}
