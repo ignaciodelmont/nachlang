@@ -73,19 +73,19 @@ snapshots['test_tokens Test all tokens'] = [
         'value': 'number'
     },
     {
-        'name': 'SUM',
+        'name': 'PLUS_SIGN',
         'value': '+'
     },
     {
-        'name': 'SUB',
+        'name': 'MINUS_SIGN',
         'value': '-'
     },
     {
-        'name': 'DIV',
+        'name': 'DIVISION_SIGN',
         'value': '/'
     },
     {
-        'name': 'MUL',
+        'name': 'MULTIPLICATION_SIGN',
         'value': '*'
     },
     {
@@ -101,7 +101,7 @@ snapshots['test_tokens Test all tokens'] = [
         'value': '4'
     },
     {
-        'name': 'SUM',
+        'name': 'PLUS_SIGN',
         'value': '+'
     },
     {

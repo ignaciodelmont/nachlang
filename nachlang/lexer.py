@@ -26,8 +26,8 @@ tokens = [
     ('CLOSE_CURLY_BRA', r'\}'),
 
     # Operators
-    ('DIV', r'\/'),
-    ('MULTIPLY_SIGN', r'\*'),
+    ('DIVISION_SIGN', r'\/'),
+    ('MULTIPLICATION_SIGN', r'\*'),
     ('PLUS_SIGN', r'\+'),
     ('MINUS_SIGN', r'\-'),
     
