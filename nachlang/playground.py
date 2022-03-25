@@ -17,4 +17,3 @@ ast = parser.parse(tokens)
 # pprint.pprint(ast)
 # graph(ast)
 generate_llvm_ir(ast)
-

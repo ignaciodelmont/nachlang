@@ -29,11 +29,13 @@ INT32 = ir.IntType(32)
 # Common resolvers
 #
 
-def get_first_key(data: dict, max_length: int =1):
+
+def get_first_key(data: dict, max_length: int = 1):
     if len(data) > max_length:
         raise Exception(f"Unexpected length for {data}")
-    
+
     return next(iter(data.keys()))
+
 
 # TODO: rename?
 def resolve_ast_object(o: dict):
@@ -54,6 +56,7 @@ def resolve_with_no_returns(values):
     for e in values:
         resolve_ast_object(e)
 
+
 def resolve_expression(expression):
     exp = utils._filter_parens(expression)[0]
 
@@ -69,7 +72,7 @@ def resolve_binary_operation(bin_op):
     binary_operand = resolve_operand(bin_op[1])
     rhs = resolve_expression(bin_op[2]["value"])
     return binary_operand(lhs, rhs)
-    
+
 
 def resolve_define_var(definition):
     var_name = definition[1]
@@ -83,7 +86,7 @@ def resolve_define_var(definition):
 
     var_pointer = builder.alloca(INT32)
     symbol_table[var_name.value] = var_pointer
-    builder.store(expression_value ,var_pointer)
+    builder.store(expression_value, var_pointer)
     return
 
 
@@ -91,8 +94,10 @@ def resolve_define_var(definition):
 # Terminals
 #
 
+
 def resolve_number(num):
     return ir.Constant(INT32, num.value)
+
 
 def resolve_operand(operand):
     if operand.name == "PLUS_SIGN":
@@ -111,8 +116,10 @@ def resolve_var(var):
         raise Exception(f"Variable not defined {var.name} at {var.source_pos}")
     return builder.load(pointer)
 
+
 def ignore(item):
     return
+
 
 #
 # Function pointers
@@ -134,8 +141,8 @@ nodes = {
 # LLVM code gen
 #
 
+
 def generate_llvm_ir(ast):
     resolve_ast_object(ast)
     with open("output.ll", "w") as f:
         f.write(str(module))
-

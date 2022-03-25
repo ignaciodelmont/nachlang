@@ -2,19 +2,18 @@ import rply
 from lexer import tokens as tk
 
 pg = rply.ParserGenerator(
-    tokens = list(map(lambda t: t[0], tk)),
-    precedence = [
+    tokens=list(map(lambda t: t[0], tk)),
+    precedence=[
         ("left", ["PLUS_SIGN", "MINUS_SIGN"]),
         ("left", ["MULTIPLICATION_SIGN"]),
-        ("left", ["DIVISION_SIGN"])
-    ]
+        ("left", ["DIVISION_SIGN"]),
+    ],
 )
 
+
 def build_response(name, value):
-    return {
-        "name": name,
-        "value": value
-    }
+    return {"name": name, "value": value}
+
 
 @pg.production("statement_list : statement")
 @pg.production("statement_list : statement statement_list")
@@ -27,6 +26,7 @@ def statement_list(p):
     else:
         res = p
     return build_response("statement_list", res)
+
 
 @pg.production("statement : expression")
 @pg.production("statement : define_var")
@@ -54,10 +54,10 @@ def add(p):
     return build_response("binary_operation", p)
 
 
-
 @pg.production("define_var : DEF VAR expression")
 def define_var(p):
     return build_response("define_var", p)
+
 
 @pg.production("empty : ")
 def empty(p):
