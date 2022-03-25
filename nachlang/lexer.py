@@ -15,7 +15,7 @@ tokens = [
 
     # Booleans
     ("TRUE", r"true"),
-    ("False", r"false"),
+    ("FALSE", r"false"),
 
     # Parenthesis
     ("OPEN_PAREN", r"\("),
@@ -57,8 +57,6 @@ tokens = [
 ]
 
 def add_token(t):
-    a, b = t
-    print(a,b)
     lexer_generator.add(*t)
 
 
