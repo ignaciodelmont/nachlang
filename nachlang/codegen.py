@@ -142,7 +142,13 @@ nodes = {
 #
 
 
+def print_module_body(module):
+    print("\n".join(module._get_body_lines()))
+
+
 def generate_llvm_ir(ast):
     resolve_ast_object(ast)
-    with open("output.ll", "w") as f:
-        f.write(str(module))
+    # with open("output.ll", "w") as f:
+    #     f.write(str(module))
+    print_module_body(module)
+    return module

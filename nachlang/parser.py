@@ -1,5 +1,5 @@
 import rply
-from lexer import tokens as tk
+from nachlang.lexer import tokens as tk, lexer
 
 pg = rply.ParserGenerator(
     tokens=list(map(lambda t: t[0], tk)),
@@ -65,3 +65,7 @@ def empty(p):
 
 
 parser = pg.build()
+
+
+def parse(code):
+    return parser.parse(lexer.lex(code))

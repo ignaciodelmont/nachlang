@@ -25,7 +25,7 @@ snapshots['test_tokens Test all tokens'] = [
         'value': 'true'
     },
     {
-        'name': 'False',
+        'name': 'FALSE',
         'value': 'false'
     },
     {

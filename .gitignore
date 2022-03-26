@@ -8,3 +8,6 @@ poetry.lock
 
 # Graphviz
 *.gv*
+
+# LLVM
+*.ll
