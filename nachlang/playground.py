@@ -5,6 +5,8 @@ from graph import graph
 import pprint
 
 program = """
+    def a 4
+    a + 1
     1 + 1
     1 * (8 - 9 * 3)
     1 * 2 * 3 * 4
@@ -12,7 +14,6 @@ program = """
 
 tokens = lexer.lex(program)
 ast = parser.parse(tokens)
-pprint.pprint(ast)
-graph(ast)
-print(generate_llvm_ir(ast))
-
+# pprint.pprint(ast)
+# graph(ast)
+generate_llvm_ir(ast)

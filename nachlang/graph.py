@@ -3,16 +3,19 @@ import uuid
 
 g = gv.Graph(name="Program ast")
 
+
 def resolve_terminal(terminal):
     return
+
 
 def gen_node_name():
     return f"n{str(uuid.uuid4())}"
 
+
 def graph(ast):
     def recur_graph(ast, parent_node_name=None):
         if type(ast) == dict:
-            node_key = list(ast.keys())[0]
+            node_key = ast["name"]
             node_name = gen_node_name()
 
             # Parent node
@@ -22,8 +25,8 @@ def graph(ast):
                 g.edge(parent_node_name, node_name)
 
             # Child nodes
-            [recur_graph(node, node_name) for node in ast[node_key]]
-            
+            [recur_graph(node, node_name) for node in ast["value"]]
+
         else:
             terminal_name = ast.name
             terminal_value = ast.value
@@ -36,9 +39,6 @@ def graph(ast):
             g.node(terminal_value_node, label=terminal_value)
             g.edge(terminal_name_node, terminal_value_node)
 
-        
-
-    recur_graph(ast)
+    root_name = ast["name"]
+    [recur_graph(v, root_name) for v in ast["value"]]
     g.render("output.gv", view=True)
-
-
