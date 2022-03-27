@@ -85,6 +85,7 @@ def resolve_define_var(definition):
     symbol_table[var_name.value] = var_pointer
     builder.store(expression_value, var_pointer)
 
+
 def resolve_if_statement(if_statement):
     """
     Allows both if/else type statements or just if statements
@@ -98,6 +99,7 @@ def resolve_if_statement(if_statement):
         with otherwise:
             if len(if_statement) == 10:
                 resolve_ast_object(if_statement[7])
+
 
 #
 # Terminals
@@ -125,6 +127,7 @@ def resolve_operand(operand):
         return builder.or_
 
     raise Exception(f"Couldn't resolve operand {operand}")
+
 
 def resolve_var(var):
     pointer = symbol_table.get(var.value)

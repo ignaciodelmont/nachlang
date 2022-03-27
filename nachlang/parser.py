@@ -8,7 +8,7 @@ pg = rply.ParserGenerator(
         ("left", ["AND"]),
         ("left", ["PLUS_SIGN", "MINUS_SIGN"]),
         ("left", ["MULTIPLICATION_SIGN"]),
-        ("left", ["DIVISION_SIGN"]),        
+        ("left", ["DIVISION_SIGN"]),
     ],
 )
 
@@ -37,8 +37,12 @@ def statement(p):
     return build_response("statement", p)
 
 
-@pg.production("if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN")
-@pg.production("if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN")
+@pg.production(
+    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
+)
+@pg.production(
+    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
+)
 def if_statement(p):
     return build_response("if_statement", p)
 
