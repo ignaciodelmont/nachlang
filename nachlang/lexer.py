@@ -30,6 +30,9 @@ tokens = [
     ("EQ", r"=="),
     ("LT", r"<"),
     ("GT", r">"),
+    ("NEQ", r"!="),
+    ("AND", r"and"),
+    ("OR", r"or"),
     # Types
     ("NUMBER_TYPE", r"number"),
     ("STRING_TYPE", r"string"),

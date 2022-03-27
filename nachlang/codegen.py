@@ -1,5 +1,6 @@
 from llvmlite import binding, ir
 from nachlang import utils
+from functools import partial
 
 # LLVM Initialization
 # https://llvmlite.readthedocs.io/en/latest/user-guide/binding/initialization-finalization.html?highlight=initialize#initialization-and-finalization
@@ -77,18 +78,26 @@ def resolve_binary_operation(bin_op):
 def resolve_define_var(definition):
     var_name = definition[1]
 
-    if var_name.value in symbol_table:
-        # TODO handle this properly
-        raise Exception("Variable is already defined")
-
     expression = definition[2]
     expression_value = nodes["expression"](expression["value"])
 
     var_pointer = builder.alloca(INT32)
     symbol_table[var_name.value] = var_pointer
     builder.store(expression_value, var_pointer)
-    return
 
+def resolve_if_statement(if_statement):
+    """
+    Allows both if/else type statements or just if statements
+
+    * if it's an if/else statement the length of the if_statement arg will be equal to 10
+    * if it's an if statement the length of the if_statement arg will be equal to 7
+    """
+    with builder.if_else(resolve_ast_object(if_statement[2])) as (then, otherwise):
+        with then:
+            resolve_ast_object(if_statement[4])
+        with otherwise:
+            if len(if_statement) == 10:
+                resolve_ast_object(if_statement[7])
 
 #
 # Terminals
@@ -108,7 +117,14 @@ def resolve_operand(operand):
         return builder.mul
     if operand.name == "DIVISION_SIGN":
         return builder.sdiv
+    if operand.name in ["EQ", "NEQ", "LT", "GT", "GTE", "LTE"]:
+        return partial(builder.icmp_signed, operand.value)
+    if operand.name == "AND":
+        return builder.and_
+    if operand.name == "OR":
+        return builder.or_
 
+    raise Exception(f"Couldn't resolve operand {operand}")
 
 def resolve_var(var):
     pointer = symbol_table.get(var.value)
@@ -135,6 +151,7 @@ nodes = {
     "VAR": resolve_var,
     "statement_list": resolve_with_no_returns,
     "statement": resolve_with_no_returns,
+    "if_statement": resolve_if_statement,
 }
 
 #
