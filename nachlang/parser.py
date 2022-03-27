@@ -4,6 +4,8 @@ from nachlang.lexer import tokens as tk, lexer
 pg = rply.ParserGenerator(
     tokens=list(map(lambda t: t[0], tk)),
     precedence=[
+        ("left", ["OR"]),
+        ("left", ["AND"]),
         ("left", ["PLUS_SIGN", "MINUS_SIGN"]),
         ("left", ["MULTIPLICATION_SIGN"]),
         ("left", ["DIVISION_SIGN"]),
@@ -30,8 +32,19 @@ def statement_list(p):
 
 @pg.production("statement : expression")
 @pg.production("statement : define_var")
+@pg.production("statement : if_statement")
 def statement(p):
     return build_response("statement", p)
+
+
+@pg.production(
+    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
+)
+@pg.production(
+    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
+)
+def if_statement(p):
+    return build_response("if_statement", p)
 
 
 @pg.production("expression : OPEN_PAREN expression CLOSE_PAREN")
@@ -50,7 +63,15 @@ def expression(p):
 @pg.production("binary_operation : expression MINUS_SIGN expression")
 @pg.production("binary_operation : expression MULTIPLICATION_SIGN expression")
 @pg.production("binary_operation : expression DIVISION_SIGN expression")
-def add(p):
+@pg.production("binary_operation : expression EQ expression")
+@pg.production("binary_operation : expression NEQ expression")
+@pg.production("binary_operation : expression LT expression")
+@pg.production("binary_operation : expression GT expression")
+@pg.production("binary_operation : expression LTE expression")
+@pg.production("binary_operation : expression GTE expression")
+@pg.production("binary_operation : expression AND expression")
+@pg.production("binary_operation : expression OR expression")
+def binop(p):
     return build_response("binary_operation", p)
 
 
