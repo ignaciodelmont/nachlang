@@ -24,6 +24,7 @@ builder = ir.IRBuilder(block)
 # Types
 
 INT32 = ir.IntType(32)
+INT1 = ir.IntType(1)
 
 
 #
@@ -93,7 +94,8 @@ def resolve_if_statement(if_statement):
     * if it's an if/else statement the length of the if_statement arg will be equal to 10
     * if it's an if statement the length of the if_statement arg will be equal to 7
     """
-    with builder.if_else(resolve_ast_object(if_statement[2])) as (then, otherwise):
+    with builder.if_else(
+        builder.trunc(resolve_ast_object(if_statement[2]), INT1)) as (then, otherwise):
         with then:
             resolve_ast_object(if_statement[4])
         with otherwise:
@@ -137,7 +139,7 @@ def resolve_var(var):
 
 
 def ignore(item):
-    return
+    return 
 
 
 #
