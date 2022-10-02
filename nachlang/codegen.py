@@ -11,16 +11,25 @@ from functools import partial, reduce
 
 
 # Types
-
+global_context = ir.global_context
 INT32 = ir.IntType(32)
+INT8_PTR = ir.IntType(8).as_pointer()
 INT1 = ir.IntType(1)
 VOID = ir.VoidType()
+NACHTYPE = global_context.get_identified_type("struct.nachtype").set_body(INT32)
 
 def create_context(builder, scope_path):
+    context = builder.module.context
+    # TODO: Do not use IdentifiedStructType directly
+    # https://github.com/numba/llvmlite/blob/a6c58beb5d5bc44ede0430d864d4a2b2951a7ee9/llvmlite/ir/types.py#L369
+
+    # This "looks" promising https://github.com/numba/llvmlite/issues/442 (take a look at struct.Book)
+    # struct = ir.IdentifiedStructType(context, "nachtype")
     symbol_table.add_scope(scope_path)
     return {
         "builder": builder,
-        "scope_path": scope_path
+        "scope_path": scope_path,
+        "nachtype": INT32
     }
 
 """
@@ -150,7 +159,7 @@ def resolve_return(return_statement, context):
         symbol_table.add_return(scope_path, builder.ret_void())
 
 
-def resolve_define_function(function_definition, context):    
+def resolve_define_function(function_definition, context):
     def infer_return_type(context):
         scope_path = context["scope_path"]
         scope = symbol_table.get_scope(scope_path)
@@ -320,7 +329,7 @@ nodes = {
     "arguments": resolve_arguments,
     "binary_operation": resolve_binary_operation,
     "expression": resolve_expression,
-     "statement_list": resolve_with_no_returns,
+    "statement_list": resolve_with_no_returns,
     "statement": resolve_with_no_returns,
     "if_statement": resolve_if_statement,
     "NUMBER": resolve_number,
