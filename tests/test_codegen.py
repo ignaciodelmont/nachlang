@@ -1,4 +1,4 @@
-from nachlang.codegen import generate_llvm_ir
+from nachlang.codegen.ast import generate_llvm_ir
 from nachlang.parser import parse
 def test_codegen(code_samples, snapshot):
     def test_sample(code_sample):

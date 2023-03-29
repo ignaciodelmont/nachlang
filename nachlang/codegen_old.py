@@ -1,22 +1,28 @@
 from ast import Expression, arg
+from dataclasses import dataclass
+from enum import Enum
 from re import I
+from typing import Any, Type
 from llvmlite import binding, ir
 from nachlang import utils
 from nachlang import symbol_table
 from functools import partial, reduce
-
+from nachlang.debugger import logger as dlog
+import pprint
 # LLVM Initialization
 # https://llvmlite.readthedocs.io/en/latest/user-guide/binding/initialization-finalization.html?highlight=initialize#initialization-and-finalization
-
-
 
 # Types
 global_context = ir.global_context
 INT32 = ir.IntType(32)
+INT8 = ir.IntType(8)
 INT8_PTR = ir.IntType(8).as_pointer()
 INT1 = ir.IntType(1)
 VOID = ir.VoidType()
-NACHTYPE = global_context.get_identified_type("struct.nachtype").set_body(INT32)
+NACHTYPE = global_context.get_identified_type("struct.nachtype")
+NACHTYPE.set_body(INT1, INT32)
+
+
 
 def create_context(builder, scope_path):
     context = builder.module.context
@@ -87,28 +93,35 @@ def resolve_expression(expression, context):
         expression_type = exp.name
         return nodes[expression_type](exp, context)
 
-
 def resolve_binary_operation(bin_op, context):
+    builder = context["builder"]
     lhs = resolve_expression(bin_op[0]["value"], context)
-    binary_operand = resolve_operand(bin_op[1], context)
     rhs = resolve_expression(bin_op[2]["value"], context)
-    return binary_operand(lhs, rhs)
+    binary_operand = resolve_operand(bin_op[1], context)
+
+    if type(binary_operand) == partial and binary_operand.func.__name__ == "icmp_signed":
+        t = TypesEnum.INT1
+        bin_func = lambda lhs, rhs: builder.trunc(binary_operand(lhs, rhs), INT1)
+    else:
+        # TODO: do better handling of type here
+        t = rhs.type
+        bin_func = binary_operand
+
+    return allocate(builder, bin_func(load(builder, lhs), load(builder, rhs)), t)
 
 
 def resolve_define_var(definition, context):
-    builder = context["builder"]
-
+    """
+    The value will already be allocated due to the custom Nachtype we're using, so
+    all this function has to do is add an entry to the symbol table to reference the
+    expression.
+    """
     var_name = definition[1]
-
     expression = definition[2]
     expression_value = nodes["expression"](expression["value"], context)
-
-    var_pointer = builder.alloca(INT32)
-    
     scope_path = context["scope_path"]
-    symbol_table.add_reference(scope_path, var_name.value, var_pointer)
-
-    builder.store(expression_value, var_pointer)
+    symbol_table.add_reference(scope_path, var_name.value, expression_value)
+    return expression_value
 
 
 def resolve_if_statement(if_statement, context):
@@ -119,9 +132,9 @@ def resolve_if_statement(if_statement, context):
     * if it's an if statement the length of the if_statement arg will be equal to 7
     """
     builder = context["builder"]
-
+    
     with builder.if_else(
-        builder.trunc(resolve_ast_object(if_statement[2], context), INT1)) as (then, otherwise):
+        load(builder, resolve_ast_object(if_statement[2], context))) as (then, otherwise):
         with then:
             resolve_ast_object(if_statement[4], context)
         with otherwise:
@@ -141,7 +154,7 @@ def nested_scope_context(context, block_appendable, args, scope_name):
     new_scope_context = create_context(builder, new_scope_path)
 
     add_ref = partial(symbol_table.add_reference, new_scope_path)
-    
+
     list(map(lambda a: add_ref(*a), zip(*args)))
 
     builder.position_at_start(new_block)
@@ -152,50 +165,41 @@ def resolve_return(return_statement, context):
     builder = context["builder"]
     scope_path = context["scope_path"]
     if len(return_statement) == 2:
-        expression = resolve_expression(return_statement[1]["value"], context)
-        builder.ret(expression)
-        symbol_table.add_return(scope_path, expression)
+        nach_val = resolve_expression(return_statement[1]["value"], context)
+        builder.ret(nach_val.pointer)
+        # TODO: maybe adding the return to the symbol table is not needed...
+        symbol_table.add_return(scope_path, nach_val)
+        return nach_val
     else:
         symbol_table.add_return(scope_path, builder.ret_void())
 
 
 def resolve_define_function(function_definition, context):
-    def infer_return_type(context):
-        scope_path = context["scope_path"]
-        scope = symbol_table.get_scope(scope_path)
-        returns = scope["returns"]
-
-        if not bool(returns):
-            return VOID
-
-        all_possible_return_types = [t.type for t in returns]
-
-        if all_possible_return_types.count(all_possible_return_types[0]) == len(all_possible_return_types):
-            return all_possible_return_types[0]
-        else:
-            raise Exception("Return types do not match in function")
-
     scope_path = context["scope_path"]
     arg_types, arg_names = resolve_arguments(function_definition[3]["value"], context)
-    function_types = ir.FunctionType(VOID, arg_types)
+    function_types = ir.FunctionType(NACHTYPE.as_pointer(), arg_types)
     fn_name = function_definition[1].value
     fn = ir.Function(module, function_types, name=fn_name)
     fn_args = fn.args
-    with nested_scope_context(context, fn, (arg_names, fn_args), fn_name) as ctx:
+    with nested_scope_context(context, fn, (arg_names, fn_args), fn_name) as ctx:        
         resolve_ast_object(function_definition[6], ctx)
-        return_type = infer_return_type(ctx)
+        return_type = NACHTYPE.as_pointer()
         fn.type = ir.FunctionType(return_type, arg_types).as_pointer()
         fn.ftype = ir.FunctionType(return_type, arg_types)
-        fn.return_value = return_type
         symbol_table.add_reference(scope_path , fn_name, fn)
 
+
 def resolve_call_function(call_function, context):
+    dlog.info(call_function)
     builder = context["builder"]
     scope_path = context["scope_path"]
     fn_name = call_function[0].value
     fn = symbol_table.get_reference(scope_path , fn_name)
+    dlog.info("Printing function")
+    dlog.info(fn)
     arg_values = resolve_ast_object(call_function[2], context)
-    return builder.call(fn, arg_values)
+    dlog.info(arg_values)
+    return builder.call(fn, (arg_val.pointer for arg_val in arg_values))
 
 
 voidptr_t = ir.IntType(8).as_pointer()
@@ -235,8 +239,7 @@ def resolve_print_expression(print_expression, context):
     Note: There is no checking to ensure there is correct number of values
     in `args` and there type matches the declaration in the format string.
     """
-    expression = resolve_expression(print_expression[2]["value"], context)
-
+    nach_value = resolve_expression(print_expression[2]["value"], context)
     # return
     builder = context["builder"]
 
@@ -256,7 +259,7 @@ def resolve_print_expression(print_expression, context):
     # Call
     ptr_fmt = builder.bitcast(global_fmt, cstring)
     # 
-    return builder.call(fn, [ptr_fmt] + list([expression]))
+    return builder.call(fn, [ptr_fmt] + list([load(builder, nach_value)]))
 
 ####
     
@@ -264,18 +267,67 @@ def resolve_print_expression(print_expression, context):
 
 
 def resolve_arguments(arguments, context):
-    return tuple(INT32 for a in arguments), tuple(a.value for a in arguments)
+    return tuple(NACHTYPE.as_pointer() for a in arguments), tuple(a.value for a in arguments)
 
 def resolve_argument_values(argument_values, context):
-    return list(map(partial(resolve_ast_object, context=context), argument_values))
+    res = list(map(partial(resolve_ast_object, context=context), argument_values))
+    return res
+    # return list(map(partial(resolve_ast_object, context=context), argument_values))
 
 #
 # Terminals
 #
+types = {
+    0: INT1,
+    1: INT32,
+}
 
+class TypesEnum(Enum):
+    INT1 = 0
+    INT32 = 1
 
-def resolve_number(num, *args):
-    return ir.Constant(INT32, num.value)
+types_e = {
+    INT1: 0,
+    INT32: 1
+}
+
+@dataclass
+class NachValue:
+    type: TypesEnum
+    pointer: Any
+
+def get_pointer(nach_value):
+    return builder.gep(nach_value.pointer, [INT32(0), INT32(nach_value.type.value)], inbounds=True)
+
+def load(builder, nach_value_or_argument):
+    print(nach_value_or_argument)
+    dlog.info(nach_value_or_argument)
+    if (type(nach_value_or_argument) == ir.Argument):
+        print("I'm an argument")
+        return builder.load(nach_value_or_argument)
+    elif type(nach_value_or_argument) == NachValue:
+        print("I'm a value")
+        return builder.load(get_pointer(nach_value_or_argument))
+    else:
+        raise Exception(f"Unexpected value when loading. Value: {nach_value_or_argument}")
+
+def allocate(builder, value, type_: TypesEnum) -> NachValue:
+    o = builder.alloca(NACHTYPE)
+    value_type_id = type_.value
+    value_ptr = builder.gep(o, [INT32(0), INT32(value_type_id)], inbounds=True)
+    llvm_type = types[value_type_id]
+    
+    # if type is `str` it means we're storing a python resolved value and it needs to be casted
+    # otherwise, we're storing an llvm resolved value, so we just store the value itself
+    if type(value) == str:
+        builder.store(llvm_type(value), value_ptr, align=1)
+    else:
+        builder.store(value, value_ptr, align=1)
+    return NachValue(type_, o)
+
+def resolve_number(num, context):
+    builder = context["builder"]
+    return allocate(builder, num.value, TypesEnum.INT32)
 
 
 def resolve_operand(operand, context):
@@ -301,15 +353,11 @@ def resolve_operand(operand, context):
 def resolve_var(var, context):
     scope_path = context["scope_path"]
     reference = symbol_table.get_reference(scope_path ,var.value)
-    
+
     if reference == None:
         raise Exception(f"Variable not defined {var.name} at {var.source_pos}")
 
-    if isinstance(reference, ir.Argument):
-        return reference
-    else:
-        return builder.load(reference)
-
+    return reference
 
 def ignore(item):
     return 
