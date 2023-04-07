@@ -1,6 +1,7 @@
 import rply
 from nachlang.lexer import tokens as tk, lexer
 
+
 pg = rply.ParserGenerator(
     tokens=list(map(lambda t: t[0], tk)),
     precedence=[
@@ -55,6 +56,7 @@ def expression_paren(p):
 
 
 @pg.production("expression : NUMBER")
+@pg.production("expression : STRING")
 @pg.production("expression : VAR")
 @pg.production("expression : binary_operation")
 @pg.production("expression : call_function")
@@ -83,19 +85,25 @@ def binop(p):
 def define_var(p):
     return build_response("define_var", p)
 
+
 @pg.production("return : RETURN")
 @pg.production("return : RETURN expression")
 def return_(p):
     return build_response("return", p)
 
+
 # TODO: Rename VAR -> NAME
-@pg.production("define_function : DEFN VAR OPEN_PAREN arguments CLOSE_PAREN OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA")
+@pg.production(
+    "define_function : DEFN VAR OPEN_PAREN arguments CLOSE_PAREN OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA"
+)
 def define_func(p):
     return build_response("define_function", p)
+
 
 @pg.production("call_function : VAR OPEN_PAREN argument_values CLOSE_PAREN")
 def call_func(p):
     return build_response("call_function", p)
+
 
 @pg.production("print_expression : PRINT OPEN_PAREN argument_values CLOSE_PAREN")
 def print_expression(p):
@@ -112,6 +120,7 @@ def argument_values(p):
     else:
         raise Exception("Unexpected Parsing Error")
 
+
 @pg.production("arguments : ")
 @pg.production("arguments : VAR")
 @pg.production("arguments : arguments arguments")
@@ -123,12 +132,12 @@ def arguments(p):
     a,
     a,b
     a,b,
-    
+
     and so on.
 
-    
+
     """
-    
+
     if len(p) == 2:
         return build_response("arguments", p[0]["value"] + p[1]["value"])
     elif len(p) in [0, 1]:
@@ -136,7 +145,7 @@ def arguments(p):
     else:
         raise Exception("Unexpected Parsing Error")
 
-    
+
 # @pg.production("empty : ")
 # def empty(p):
 #     return

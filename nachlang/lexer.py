@@ -2,6 +2,7 @@ import rply
 
 lexer_generator = rply.LexerGenerator()
 
+
 tokens = [
     # Print
     ("PRINT", r"print"),
@@ -33,9 +34,6 @@ tokens = [
     ("NEQ", r"!="),
     ("AND", r"and"),
     ("OR", r"or"),
-    # Types
-    ("NUMBER_TYPE", r"number"),
-    ("STRING_TYPE", r"string"),
     # Functions
     ("DEFN", r"defn"),
     # Vars
@@ -47,7 +45,7 @@ tokens = [
     # String
     ("STRING", r'"(.*?)"'),
     # COMMA
-    ("COMMA", r",")
+    ("COMMA", r","),
 ]
 
 

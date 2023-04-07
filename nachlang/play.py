@@ -75,7 +75,7 @@ def allocate_string(builder, string_value):
     # print(allocated_str_space)
     bitcasted = bldr.bitcast(allocated_str_space, string)
     stored_str = bldr.store(bitcasted, str_ptr, align=1)
-    print(stored_str)
+    # print(stored_str)
     nach_ptr = bldr.alloca(nachtype)
     nach_str_ptr = bldr.gep(nach_ptr, [int32(0), int32(2)], inbounds=True)
     print(nach_str_ptr, "\n\n", str_ptr, "\n\n\n")
