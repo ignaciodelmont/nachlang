@@ -20,6 +20,7 @@ symbol_table = {}
 }
 """
 
+
 def add_scope(scope_path):
     """
     Adds a new scope to the symbol table given a path
@@ -27,12 +28,8 @@ def add_scope(scope_path):
 
     path_prefix, new_scope = scope_path[:-1], scope_path[-1]
     scope = get_scope(path_prefix)
-    
-    scope_structure = {
-        "references": {},
-        "nested": {},
-        "returns": []
-    }
+
+    scope_structure = {"references": {}, "nested": {}, "returns": []}
 
     if path_prefix == []:
         scope[new_scope] = scope_structure
@@ -54,7 +51,7 @@ def get_scope(scope_path):
     def reducer(acc, key):
         if not acc:
             return acc
-        
+
         return acc[key]["nested"]
 
     pre_scope = reduce(reducer, path_prefix, symbol_table)
@@ -64,13 +61,24 @@ def get_scope(scope_path):
 
 def add_reference(scope_path, name, reference):
     scope = get_scope(scope_path)
+
+    # TODO: Create specific Exception
+    if scope["references"].get(name):
+        raise Exception(f"'{name}' already exists in scope")
+
     scope["references"][name] = reference
     return scope
 
+
 def add_return(scope_path, reference):
+    # TODO: I believe this is wrong, I don't need to add the return info here
+    # this was here in an attempt to resolve the return type of a function
+    # ahead of runtime execution, but I can't do that because I don't know
+    # the return type of a function until runtime
     scope = get_scope(scope_path)
-    scope["returns"] = scope["returns"] +[reference]
+    scope["returns"] = scope["returns"] + [reference]
     return scope
+
 
 def get_reference(scope_path, name):
     for i in range(len(scope_path)):
@@ -83,8 +91,3 @@ def get_reference(scope_path, name):
             return scope["references"][name]
 
     raise Exception(f"'{name}' couldn't be found in scope")
-
-
-
-
-

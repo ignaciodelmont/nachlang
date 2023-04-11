@@ -6,36 +6,12 @@ from nachlang.codegen import llvm
 from nachlang import symbol_table, utils
 
 
-class TypesEnum(Enum):
-    INT1 = 0
-    INT32 = 1
-
-@dataclass
-class NachValue:
-    type: TypesEnum
-    pointer: Any
-
-def allocate(builder, value, type_: TypesEnum) -> NachValue:
-    o = builder.alloca(llvm.NACHTYPE)
-    value_type_id = type_.value
-    value_ptr = builder.gep(o, [llvm.NUMBER(0), llvm.NUMBER(value_type_id)], inbounds=True)
-    llvm_type = llvm.type_mappings[value_type_id]
-    # if type is `str` it means we're storing a python resolved value and it needs to be casted
-    # otherwise, we're storing an llvm resolved value, so we just store the value itself
-    if type(value) == str:
-        builder.store(llvm_type(value), value_ptr, align=1)
-    else:
-        builder.store(value, value_ptr, align=1)
-    return NachValue(type_, o)
-
-
-
 #
 # AST Codegen Resolvers
 #
 
+
 def resolve_ast_node(o: dict, context):
-    # NOTE: previously called resolve_ast_object. TODO: Remove this note when done
     """
     Expects an AST Node.
 
@@ -59,28 +35,32 @@ def resolve_with_no_returns(values, context):
     for e in values:
         resolve_ast_node(e, context)
 
+
 #
 # Non-terminals resolvers
 #
+
 
 def resolve_expression(expression, context):
     """
     An expression can be either a terminal or not
 
-    terminals: NUMBER | VAR 
+    terminals: NUMBER | VAR
     non-terminals: binary_operation | call_function | print_expression
 
     """
+
     def is_terminal_expression(exp):
         return type(exp) != dict
 
     exp = utils._filter_parens(expression)[0]
 
     if is_terminal_expression(exp):
-        expression_type = exp.name 
+        expression_type = exp.name
         return nodes[expression_type](exp, context)
-    
+
     return resolve_ast_node(exp, context)
+
 
 def resolve_binary_operation(binary_operation, context):
     """
@@ -94,31 +74,69 @@ def resolve_binary_operation(binary_operation, context):
     left = resolve_ast_node(binary_operation[0], context)
     right = resolve_ast_node(binary_operation[2], context)
     operator = binary_operation[1].value
-    
+
     if operator == "+":
         return llvm.add(builder, left, right)
     elif operator == "-":
         return llvm.sub(builder, left, right)
-    
+    elif operator == "*":
+        return llvm.mul(builder, left, right)
+    elif operator == "/":
+        return llvm.div(builder, left, right)
+
+
+def resolve_define_var(define_var, context):
+    """
+    Resolves a variable definition
+
+    Args:
+        define_var: A list representing a variable definition
+            [def_token, var_token, expression]
+
+        context: A dict representing the context
+    """
+    var_name = define_var[1].value
+    expression = define_var[2]
+    resolved_expression = resolve_expression(expression["value"], context)
+    symbol_table.add_reference(context["scope_path"], var_name, resolved_expression)
+    print(symbol_table.symbol_table)
+    return
+
+
+def resolve_var(resolve_var, context):
+    """
+    Resolves a variable
+
+    Args:
+        resolve_var: A token representing a variable
+        context: A dict representing the context
+    """
+
+    var_name = resolve_var.value
+    return symbol_table.get_reference(context["scope_path"], var_name)
+
 
 #
 # Terminal resolvers
 #
 
+
 def resolve_number(num, context):
     builder = context["builder"]
     return llvm.allocate_number(builder, num.value)
 
+
 def resolve_string(string, context):
     builder = context["builder"]
     return llvm.allocate_string(builder, string.value)
-    
+
+
 #
 # Resolvers pointers
 #
 
 nodes = {
-    # "define_var": resolve_define_var,
+    "define_var": resolve_define_var,
     # "argument_values": resolve_argument_values,
     # "define_function": resolve_define_function,
     # "call_function": resolve_call_function,
@@ -134,13 +152,14 @@ nodes = {
     "STRING": resolve_string,
     # "OPEN_PAREN": ignore,
     # "CLOSE_PAREN": ignore,
-    # "VAR": resolve_var,
+    "VAR": resolve_var,
 }
 
 
 #
 # Utilities
 #
+
 
 def create_context(builder, scope_path):
     """
@@ -159,6 +178,8 @@ def create_context(builder, scope_path):
         "scope_path": scope_path,
     }
 
+
+# TODO: Do not pass in builder and
 def generate_llvm_ir(ast, builder, module):
     """
     Generates LLVM ir
@@ -168,10 +189,8 @@ def generate_llvm_ir(ast, builder, module):
         builder: An llvmlite Builder Object
         module: An llvmlite module object
     """
-
+    builder, module = llvm.initialize()
     resolve_ast_node(ast, create_context(builder, ["entrypoint"]))
 
     builder.ret_void()
     return module
-
-
