@@ -14,6 +14,7 @@ NACHTYPE.set_body(INT8, NUMBER, STRING.as_pointer())
 
 type_mappings = {0: NUMBER, 1: STRING}
 
+# TODO: https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/appendix-a-how-to-implement-a-string-type-in-llvm/index.html
 
 #
 # Function getters
@@ -69,11 +70,26 @@ def load_type(builder, nach_type_ptr):
 
 
 def load_number(builder, nach_type_ptr):
-    number_ptr = get_number_pointer(builder, nach_type_ptr)
-    return builder.load(number_ptr)
+    return builder.call(get_function_by_name(builder, "load_number"), [nach_type_ptr])
 
 
-# Write a function that allocates the string type of the NACHTYPE struct
+def define_load_number(builder):
+    """
+    Defines the load_number function in the module
+    """
+    module = builder.module
+    function_type = ir.FunctionType(NUMBER, [NACHTYPE.as_pointer()])
+    function = ir.Function(module, function_type, name="load_number")
+    fn_builder = ir.IRBuilder(function.append_basic_block())
+    nach_type_ptr = function.args[0]
+    number_ptr = get_number_pointer(fn_builder, nach_type_ptr)
+    number = fn_builder.load(number_ptr)
+    fn_builder.ret(number)
+
+
+#
+# Allocations
+#
 
 
 def _allocate_string(builder, string):
@@ -95,13 +111,65 @@ def allocate_string(builder, string):
 
     The STRING type is denoted as 1 in the NACHTYPE struct
     """
-    str_ptr = builder.alloca(STRING)
     value = ir.Constant(ir.ArrayType(STRING, len(string)), bytearray(string, "utf8"))
     allocated_str_space = builder.alloca(ir.ArrayType(STRING, len(string)))
     builder.store(value, allocated_str_space)
-    bitcasted = builder.bitcast(allocated_str_space, STRING)
-    builder.store(bitcasted, str_ptr, align=1)
-    return _allocate_string(builder, str_ptr)
+    pointer_to_first_char = builder.gep(
+        allocated_str_space, [INT32(0), INT32(0)], inbounds=True
+    )
+    loaded_ptr = builder.load(pointer_to_first_char)
+    str_ptr = builder.alloca(STRING)
+    builder.store(loaded_ptr, str_ptr, align=1)
+    return builder.call(get_function_by_name(builder, "allocate_string"), [str_ptr])
+
+
+def define_allocate_string(builder):
+    """
+    Defines the allocate_string function in the module
+    """
+    module = builder.module
+    function_type = ir.FunctionType(NACHTYPE.as_pointer(), [STRING.as_pointer()])
+    function = ir.Function(module, function_type, name="allocate_string")
+    builder = ir.IRBuilder(function.append_basic_block())
+    return_value = function.args[0]
+    return builder.ret(_allocate_string(builder, return_value))
+
+
+def _allocate_number(builder, value):
+    """
+    Allocates an llvm number in a NACHTYPE struct
+    """
+    nach_type_ptr = builder.alloca(NACHTYPE)
+    nach_type_number_ptr = builder.gep(
+        nach_type_ptr, [INT32(0), INT32(1)], inbounds=True
+    )
+    builder.store(value, nach_type_number_ptr)
+    set_number_type(builder, nach_type_ptr)
+    return nach_type_ptr
+
+
+def allocate_number(builder, value):
+    """
+    Allocates a NUMBER in a NACHTYPE struct
+    """
+    return builder.call(get_function_by_name(builder, "allocate_number"), [value])
+
+
+def define_allocate_number(builder):
+    """
+    Defines the allocate_number function in the module
+    """
+    module = builder.module
+    function_type = ir.FunctionType(NACHTYPE.as_pointer(), [NUMBER])
+    function = ir.Function(module, function_type, name="allocate_number")
+    builder = ir.IRBuilder(function.append_basic_block())
+    return_value = function.args[0]
+    return builder.ret(_allocate_number(builder, return_value))
+
+
+#
+# Ops
+#
 
 
 def _define_binary_operation(builder, name):
@@ -196,38 +264,6 @@ def div(builder, nach_type_ptr1, nach_type_ptr2):
     )
 
 
-def _allocate_number(builder, value):
-    """
-    Allocates an llvm number in a NACHTYPE struct
-    """
-    nach_type_ptr = builder.alloca(NACHTYPE)
-    nach_type_number_ptr = builder.gep(
-        nach_type_ptr, [INT32(0), INT32(1)], inbounds=True
-    )
-    builder.store(value, nach_type_number_ptr)
-    set_number_type(builder, nach_type_ptr)
-    return nach_type_ptr
-
-
-def allocate_number(builder, value):
-    """
-    Allocates a NUMBER in a NACHTYPE struct
-    """
-    return builder.call(get_function_by_name(builder, "allocate_number"), [value])
-
-
-def define_allocate_number(builder):
-    """
-    Defines the allocate_number function in the module
-    """
-    module = builder.module
-    function_type = ir.FunctionType(NACHTYPE.as_pointer(), [NUMBER])
-    function = ir.Function(module, function_type, name="allocate_number")
-    builder = ir.IRBuilder(function.append_basic_block())
-    return_value = function.args[0]
-    return builder.ret(_allocate_number(builder, return_value))
-
-
 #
 # LLVM initialization
 #
@@ -254,7 +290,15 @@ def initialize():
     builder = ir.IRBuilder(block)
 
     initialize_core_fns(
-        [define_allocate_number, define_add, define_sub, define_mul, define_div]
+        [
+            define_load_number,
+            define_allocate_number,
+            define_allocate_string,
+            define_add,
+            define_sub,
+            define_mul,
+            define_div,
+        ]
     )
 
     return builder, module

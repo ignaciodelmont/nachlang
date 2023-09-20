@@ -1,4 +1,3 @@
-from llvmlite import ir
 from nachlang.codegen import core
 
 
@@ -35,6 +34,14 @@ def allocate_number(builder, number):
     Allocates a number on the heap
     """
     return core.allocate_number(builder, core.NUMBER(number))
+
+
+def allocate_string(builder, string):
+    """
+    Allocates a string on the heap
+    """
+    # TODO: IDELMONT fix string allocation
+    return core.allocate_string(builder, string)
 
 
 def initialize():

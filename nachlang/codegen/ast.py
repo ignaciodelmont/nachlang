@@ -1,7 +1,3 @@
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any
-
 from nachlang.codegen import llvm
 from nachlang import symbol_table, utils
 
@@ -99,8 +95,6 @@ def resolve_define_var(define_var, context):
     expression = define_var[2]
     resolved_expression = resolve_expression(expression["value"], context)
     symbol_table.add_reference(context["scope_path"], var_name, resolved_expression)
-    print(symbol_table.symbol_table)
-    return
 
 
 def resolve_var(resolve_var, context):

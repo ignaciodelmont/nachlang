@@ -20,5 +20,3 @@ def allocate_string(builder, string):
     string_ptr = builder.alloca(string_type)
     builder.store(string, string_ptr)
     return string_ptr
-
-
