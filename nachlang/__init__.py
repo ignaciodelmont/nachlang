@@ -37,5 +37,8 @@ def compile(filename: str, output_ll: bool = False, graph_ast: bool = False):
     cfunc()
 
 
+def compile():
+    app()
+
 if __name__ == "__main__":
     app()
