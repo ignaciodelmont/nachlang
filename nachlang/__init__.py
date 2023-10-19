@@ -15,7 +15,7 @@ def generate_ast(program):
 
 
 @app.command()
-def compile(filename: str, output_ll: bool = False, graph_ast: bool = False):
+def cmd_compile_and_run(filename: str, output_ll: bool = False, graph_ast: bool = False):
     with open(filename, "r") as f:
         program = f.read()
 
@@ -37,7 +37,7 @@ def compile(filename: str, output_ll: bool = False, graph_ast: bool = False):
     cfunc()
 
 
-def compile():
+def run_app():
     app()
 
 if __name__ == "__main__":
