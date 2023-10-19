@@ -3,6 +3,7 @@
 __pycache__
 *.egg-info
 *playground*.py
+.pytest_cache
 
 # Poetry
 poetry.lock
@@ -12,3 +13,9 @@ poetry.lock
 
 # LLVM
 *.ll
+
+# Logging
+*.log
+
+# DEV
+dev/
