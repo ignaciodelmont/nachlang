@@ -40,9 +40,32 @@ def allocate_string(builder, string):
     """
     Allocates a string on the heap
     """
-    # TODO: IDELMONT fix string allocation
     return core.allocate_string(builder, string)
 
+
+def nach_print(builder, value):
+    """
+    Prints a nachtype
+    """
+    return core.nach_print(builder, value)
+
+
+def defn_function(builder, fn_name, fn_arg_number):
+    return core.defn_function(builder, fn_name, fn_arg_number)
+
+
+def call_function(builder, fn_name, args):
+    """
+    Resolves a function call
+    """
+    return core.call_function(builder, fn_name, args)
+
+
+def return_(builder, value):
+    """
+    Returns a nachtype
+    """
+    return core.return_(builder, value)
 
 def initialize():
     """

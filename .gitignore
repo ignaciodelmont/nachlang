@@ -16,3 +16,6 @@ poetry.lock
 
 # Logging
 *.log
+
+# DEV
+dev/

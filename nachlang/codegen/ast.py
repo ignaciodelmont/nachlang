@@ -1,5 +1,13 @@
 from nachlang.codegen import llvm
 from nachlang import symbol_table, utils
+import pprint
+from contextlib import contextmanager
+from functools import partial
+
+
+@contextmanager
+def nested_scope_context(current_context, new_builder, scope_name):
+    yield create_context(new_builder, current_context["scope_path"] + [scope_name])
 
 
 #
@@ -81,6 +89,42 @@ def resolve_binary_operation(binary_operation, context):
         return llvm.div(builder, left, right)
 
 
+def resolve_print_expression(print_exp, context):
+    nach_val_to_resolve = print_exp[2]
+    nach_val = resolve_expression(nach_val_to_resolve["value"], context)
+    builder = context["builder"]
+    llvm.nach_print(builder, nach_val)
+
+
+def resolve_defn_function(function_definition, context):
+    fn_name = function_definition[1].value
+    fn_arg_names = [a.value for a in function_definition[3]["value"]]
+    fn_builder, fn = llvm.defn_function(context["builder"], fn_name, len(fn_arg_names))
+    with nested_scope_context(context, fn_builder, fn_name) as nested_context:
+        fn_args = fn.args
+        [symbol_table.add_reference(nested_context["scope_path"], arg_name, arg) for arg_name, arg in zip(fn_arg_names, fn_args)]
+        resolve_ast_node(function_definition[6], nested_context)
+
+
+def resolve_return(return_exp, context):
+    """
+    Resolves a return statement
+
+    Args:
+        return_exp: A dict representing a return statement
+        context: A dict representing the context
+    """
+    builder = context["builder"]
+    return_value = resolve_expression(return_exp[1]["value"], context)
+    llvm.return_(builder, return_value)
+
+
+def resolve_call_function(call_fn_exp, context):
+    builder = context["builder"]
+    fn_name = call_fn_exp[0].value
+    args = [resolve_expression(arg["value"], context) for arg in call_fn_exp[2]["value"]]
+    return llvm.call_function(builder, fn_name, args)
+
 def resolve_define_var(define_var, context):
     """
     Resolves a variable definition
@@ -95,6 +139,7 @@ def resolve_define_var(define_var, context):
     expression = define_var[2]
     resolved_expression = resolve_expression(expression["value"], context)
     symbol_table.add_reference(context["scope_path"], var_name, resolved_expression)
+    return resolved_expression
 
 
 def resolve_var(resolve_var, context):
@@ -132,10 +177,10 @@ def resolve_string(string, context):
 nodes = {
     "define_var": resolve_define_var,
     # "argument_values": resolve_argument_values,
-    # "define_function": resolve_define_function,
-    # "call_function": resolve_call_function,
-    # "return": resolve_return,
-    # "print_expression": resolve_print_expression,
+    "define_function": resolve_defn_function,
+    "call_function": resolve_call_function,
+    "return": resolve_return,
+    "print_expression": resolve_print_expression,
     # "arguments": resolve_arguments,
     "binary_operation": resolve_binary_operation,
     "expression": resolve_expression,
@@ -173,8 +218,7 @@ def create_context(builder, scope_path):
     }
 
 
-# TODO: Do not pass in builder and
-def generate_llvm_ir(ast, builder, module):
+def generate_llvm_ir(ast):
     """
     Generates LLVM ir
 
@@ -184,7 +228,13 @@ def generate_llvm_ir(ast, builder, module):
         module: An llvmlite module object
     """
     builder, module = llvm.initialize()
-    resolve_ast_node(ast, create_context(builder, ["entrypoint"]))
+    r = resolve_ast_node(ast, create_context(builder, ["main"]))
+
+
+    # builder.ret([next(rr) for rr in r][0])
 
     builder.ret_void()
+
+    # TODO: IDELMONT maybe return the last generated value? as implicit return instead of void?
+
     return module
