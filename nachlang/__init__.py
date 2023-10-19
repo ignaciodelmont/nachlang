@@ -15,7 +15,7 @@ def generate_ast(program):
 
 
 @app.command()
-def compile(filename: str, output_ll: bool= False, graph_ast: bool = False):
+def compile(filename: str, output_ll: bool = False, graph_ast: bool = False):
     with open(filename, "r") as f:
         program = f.read()
 
@@ -29,7 +29,7 @@ def compile(filename: str, output_ll: bool= False, graph_ast: bool = False):
     if output_ll:
         with open("out.ll", "w") as f:
             f.write(str(module))
-    
+
     engine, parsed_module = runtime.compile_ir(module)
 
     func_ptr = engine.get_function_address("main")

@@ -84,6 +84,7 @@ def load_number(builder, nach_type_ptr):
 def load_string(builder, nach_type_ptr):
     return builder.call(get_function_by_name(builder, "load_string"), [nach_type_ptr])
 
+
 def define_load_number(builder):
     """
     Defines the load_number function in the module
@@ -137,7 +138,9 @@ def define_allocate_nachtype(builder):
     fnty = ir.FunctionType(NACHTYPE.as_pointer(), [])
     function = ir.Function(module, fnty, name="allocate_nachtype")
     fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
-    i8_ptr = fn_builder.call(get_function_by_name(fn_builder, "malloc"), [INT64(NACHTYPE.__sizeof__())])
+    i8_ptr = fn_builder.call(
+        get_function_by_name(fn_builder, "malloc"), [INT64(NACHTYPE.__sizeof__())]
+    )
     nach_type_ptr = fn_builder.bitcast(i8_ptr, NACHTYPE.as_pointer())
     fn_builder.ret(nach_type_ptr)
 
@@ -183,6 +186,7 @@ def define_allocate_string(builder):
     builder = ir.IRBuilder(function.append_basic_block())
     return_value = function.args[0]
     return builder.ret(_allocate_string(builder, return_value))
+
 
 def _allocate_number(builder, value):
     """
@@ -321,16 +325,27 @@ def nach_print(builder, nach_type_ptr):
     fn = get_function_by_name(builder, "printf")
     global_fmt = get_function_by_name(builder, "printf_format")
     ptr_fmt = builder.bitcast(global_fmt, STRING.as_pointer())
-    builder.call(fn, [ptr_fmt, load_number(builder, nach_type_ptr), load_string(builder, nach_type_ptr), nach_type_ptr])
+    builder.call(
+        fn,
+        [
+            ptr_fmt,
+            load_number(builder, nach_type_ptr),
+            load_string(builder, nach_type_ptr),
+            nach_type_ptr,
+        ],
+    )
 
 
 #
 # Fuctions
 #
 
+
 def defn_function(builder, fn_name, fn_arg_number):
     module = builder.module
-    fn_type = ir.FunctionType(NACHTYPE.as_pointer(), [NACHTYPE.as_pointer() for i in range(fn_arg_number)])
+    fn_type = ir.FunctionType(
+        NACHTYPE.as_pointer(), [NACHTYPE.as_pointer() for i in range(fn_arg_number)]
+    )
     fn = ir.Function(module, fn_type, name=fn_name)
     block = fn.append_basic_block(name="entry")
     fn_builder = ir.IRBuilder(block)
@@ -350,6 +365,7 @@ def call_function(builder, fn_name, fn_args):
     """
     fn = get_function_by_name(builder, fn_name)
     return builder.call(fn, fn_args)
+
 
 #
 # Print
@@ -391,7 +407,7 @@ def declare_printf(builder):
     """
     module = builder.module
     format = "double: %f string: %s address(ptr): %p \n\0"
-    
+
     # Make global constant for format string
     cstring = INT8.as_pointer()
     fmt_bytes = _make_bytearray((format).encode("utf8"))

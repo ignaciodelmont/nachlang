@@ -67,6 +67,7 @@ def return_(builder, value):
     """
     return core.return_(builder, value)
 
+
 def initialize():
     """
     Initializes the llvm module with core functions

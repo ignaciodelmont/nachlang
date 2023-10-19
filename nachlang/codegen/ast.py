@@ -102,7 +102,10 @@ def resolve_defn_function(function_definition, context):
     fn_builder, fn = llvm.defn_function(context["builder"], fn_name, len(fn_arg_names))
     with nested_scope_context(context, fn_builder, fn_name) as nested_context:
         fn_args = fn.args
-        [symbol_table.add_reference(nested_context["scope_path"], arg_name, arg) for arg_name, arg in zip(fn_arg_names, fn_args)]
+        [
+            symbol_table.add_reference(nested_context["scope_path"], arg_name, arg)
+            for arg_name, arg in zip(fn_arg_names, fn_args)
+        ]
         resolve_ast_node(function_definition[6], nested_context)
 
 
@@ -122,8 +125,11 @@ def resolve_return(return_exp, context):
 def resolve_call_function(call_fn_exp, context):
     builder = context["builder"]
     fn_name = call_fn_exp[0].value
-    args = [resolve_expression(arg["value"], context) for arg in call_fn_exp[2]["value"]]
+    args = [
+        resolve_expression(arg["value"], context) for arg in call_fn_exp[2]["value"]
+    ]
     return llvm.call_function(builder, fn_name, args)
+
 
 def resolve_define_var(define_var, context):
     """
@@ -229,7 +235,6 @@ def generate_llvm_ir(ast):
     """
     builder, module = llvm.initialize()
     r = resolve_ast_node(ast, create_context(builder, ["main"]))
-
 
     # builder.ret([next(rr) for rr in r][0])
 

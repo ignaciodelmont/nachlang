@@ -1,5 +1,6 @@
 from llvmlite import binding as llvm
 
+
 def _create_execution_engine():
     """
     Create an ExecutionEngine suitable for JIT code generation on
