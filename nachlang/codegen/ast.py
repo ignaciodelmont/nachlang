@@ -79,14 +79,23 @@ def resolve_binary_operation(binary_operation, context):
     right = resolve_ast_node(binary_operation[2], context)
     operator = binary_operation[1].value
 
-    if operator == "+":
-        return llvm.add(builder, left, right)
-    elif operator == "-":
-        return llvm.sub(builder, left, right)
-    elif operator == "*":
-        return llvm.mul(builder, left, right)
-    elif operator == "/":
-        return llvm.div(builder, left, right)
+    funcs = {
+        "+": llvm.add,
+        "-": llvm.sub,
+        "*": llvm.mul,
+        "/": llvm.div,
+        "or": llvm.or_,
+        "and": llvm.and_,
+        "<=": partial(llvm.compare, op="<="),
+        ">=": partial(llvm.compare, op=">="),
+        "==": partial(llvm.compare, op="=="),
+        "<": partial(llvm.compare, op="<"),
+        ">": partial(llvm.compare, op=">"),
+        "!=": partial(llvm.compare, op="!="),
+    }
+
+    fn = funcs[operator]
+    return fn(builder, left, right)
 
 
 def resolve_print_expression(print_exp, context):
@@ -94,6 +103,13 @@ def resolve_print_expression(print_exp, context):
     nach_val = resolve_expression(nach_val_to_resolve["value"], context)
     builder = context["builder"]
     llvm.nach_print(builder, nach_val)
+
+
+def resolve_is_truthy_expression(is_truthy_exp, context):
+    builder = context["builder"]
+    nach_val_to_resolve = is_truthy_exp[2]
+    nach_val = resolve_expression(nach_val_to_resolve["value"], context)
+    return llvm.is_truthy(builder, nach_val)
 
 
 def resolve_defn_function(function_definition, context):
@@ -173,7 +189,15 @@ def resolve_number(num, context):
 
 def resolve_string(string, context):
     builder = context["builder"]
-    return llvm.allocate_string(builder, string.value)
+    # Need to remove the extra "" at beginning and end of string
+    processed_value = string.value.replace('"', "")
+
+    return llvm.allocate_string(builder, processed_value)
+
+
+def resolve_bool(bool, context):
+    builder = context["builder"]
+    return llvm.allocate_bool(builder, bool.value)
 
 
 #
@@ -187,12 +211,14 @@ nodes = {
     "call_function": resolve_call_function,
     "return": resolve_return,
     "print_expression": resolve_print_expression,
+    "is_truthy_expression": resolve_is_truthy_expression,
     # "arguments": resolve_arguments,
     "binary_operation": resolve_binary_operation,
     "expression": resolve_expression,
     "statement_list": resolve_with_no_returns,
     "statement": resolve_with_no_returns,
     # "if_statement": resolve_if_statement,
+    "BOOL": resolve_bool,
     "NUMBER": resolve_number,
     "STRING": resolve_string,
     # "OPEN_PAREN": ignore,

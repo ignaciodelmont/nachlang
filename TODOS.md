@@ -1,8 +1,5 @@
 # TODOS
 
-- Create a compiler script
-- Add BOOLEANS
-- Add conditional expressions
 - Handle implicit returns on functions. Or make them mandatory from in the parser!
 - Add if statements
 - Add Loops
