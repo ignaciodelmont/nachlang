@@ -12,8 +12,8 @@ tokens = [
     ("LOOP", r"loop"),
     ("RETURN", r"return"),
     # Booleans
-    ("TRUE", r"true"),
-    ("FALSE", r"false"),
+    ("BOOL", r"true|false"),
+    ("IS_TRUTHY", r"is_truthy"),
     # Parenthesis
     ("OPEN_PAREN", r"\("),
     ("CLOSE_PAREN", r"\)"),

@@ -57,10 +57,12 @@ def expression_paren(p):
 
 @pg.production("expression : NUMBER")
 @pg.production("expression : STRING")
+@pg.production("expression : BOOL")
 @pg.production("expression : VAR")
 @pg.production("expression : binary_operation")
 @pg.production("expression : call_function")
 @pg.production("expression : print_expression")
+@pg.production("expression : is_truthy_expression")
 def expression(p):
     return build_response("expression", p)
 
@@ -108,6 +110,11 @@ def call_func(p):
 @pg.production("print_expression : PRINT OPEN_PAREN argument_values CLOSE_PAREN")
 def print_expression(p):
     return build_response("print_expression", p)
+
+
+@pg.production("is_truthy_expression : IS_TRUTHY OPEN_PAREN expression CLOSE_PAREN")
+def is_truthy_expression(p):
+    return build_response("is_truthy_expression", p)
 
 
 @pg.production("argument_values : ")
