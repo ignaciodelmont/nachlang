@@ -89,6 +89,10 @@ def defn_function(builder, fn_name, fn_arg_number):
     return core.defn_function(builder, fn_name, fn_arg_number)
 
 
+def if_statement(builder, conditional_expression):
+    return core.if_statement(builder, conditional_expression)
+
+
 def call_function(builder, fn_name, args):
     """
     Resolves a function call

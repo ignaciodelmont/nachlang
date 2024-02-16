@@ -682,7 +682,7 @@ def is_truthy(builder, nach_type_ptr):
 
 
 #
-# Fuctions
+# Functions
 #
 
 
@@ -710,6 +710,17 @@ def call_function(builder, fn_name, fn_args):
     """
     fn = get_symbol_by_name(builder, fn_name)
     return builder.call(fn, fn_args)
+
+
+#
+# If statements
+#
+
+def if_statement(builder, conditional_expression):
+    return builder.if_else(
+        load_bool(builder, conditional_expression)
+    )
+        
 
 
 #

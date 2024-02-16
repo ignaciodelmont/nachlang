@@ -98,6 +98,26 @@ def resolve_binary_operation(binary_operation, context):
     return fn(builder, left, right)
 
 
+def resolve_if_statement(if_statement, context):
+    resolved_conditional_expression = resolve_expression(
+        if_statement[2]["value"], context
+    )
+    casted_conditional_expression = llvm.is_truthy(
+        context["builder"], resolved_conditional_expression
+    )
+    with llvm.if_statement(context["builder"], casted_conditional_expression) as (
+        then,
+        otherwise,
+    ):
+        with then:
+            resolve_ast_node(if_statement[4], context)
+        with otherwise:
+            if len(if_statement) == 10:
+                resolve_ast_node(if_statement[7], context)
+            else:
+                pass
+
+
 def resolve_print_expression(print_exp, context):
     nach_val_to_resolve = print_exp[2]
     nach_val = resolve_expression(nach_val_to_resolve["value"], context)
@@ -123,6 +143,11 @@ def resolve_defn_function(function_definition, context):
             for arg_name, arg in zip(fn_arg_names, fn_args)
         ]
         resolve_ast_node(function_definition[6], nested_context)
+
+        # NOTE: if the last block of a function is not terminated, i.e there's no return
+        # statement, we need add an implicit return statement
+        if not fn.blocks[-1].is_terminated:
+            llvm.return_(fn_builder, llvm.allocate_number(fn_builder, 0))
 
 
 def resolve_return(return_exp, context):
@@ -217,7 +242,7 @@ nodes = {
     "expression": resolve_expression,
     "statement_list": resolve_with_no_returns,
     "statement": resolve_with_no_returns,
-    # "if_statement": resolve_if_statement,
+    "if_statement": resolve_if_statement,
     "BOOL": resolve_bool,
     "NUMBER": resolve_number,
     "STRING": resolve_string,
@@ -262,7 +287,7 @@ def generate_llvm_ir(ast):
     builder, module = llvm.initialize()
     r = resolve_ast_node(ast, create_context(builder, ["main"]))
 
-    # builder.ret([next(rr) for rr in r][0])
+    # print(builder.module)
 
     builder.ret_void()
 
