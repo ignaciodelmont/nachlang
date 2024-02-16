@@ -14,8 +14,7 @@ def generate_ast(program):
     return parser.parse(tokens)
 
 
-@app.command()
-def cmd_compile_and_run(
+def _cmd_compile_and_run(
     filename: str, output_ll: bool = False, graph_ast: bool = False
 ):
     with open(filename, "r") as f:
@@ -37,6 +36,12 @@ def cmd_compile_and_run(
     func_ptr = engine.get_function_address("main")
     cfunc = CFUNCTYPE(None)(func_ptr)
     cfunc()
+    
+@app.command()
+def cmd_compile_and_run(
+    filename: str, output_ll: bool = False, graph_ast: bool = False
+):
+    _cmd_compile_and_run(filename, output_ll, graph_ast)
 
 
 def run_app():
