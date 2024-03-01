@@ -1,6 +1,5 @@
 from nachlang.codegen import llvm
 from nachlang import symbol_table, utils
-import pprint
 from contextlib import contextmanager
 from functools import partial
 
@@ -55,7 +54,7 @@ def resolve_expression(expression, context):
     """
 
     def is_terminal_expression(exp):
-        return type(exp) != dict
+        return not isinstance(exp, dict)
 
     exp = utils._filter_parens(expression)[0]
 
@@ -99,6 +98,11 @@ def resolve_binary_operation(binary_operation, context):
 
 
 def resolve_if_statement(if_statement, context):
+    """
+    If statement can be of two forms:
+    1. (if (expression) {statement_list})
+    2. (if (expression) {statement_list} {statement_list})
+    """
     resolved_conditional_expression = resolve_expression(
         if_statement[2]["value"], context
     )
@@ -112,6 +116,7 @@ def resolve_if_statement(if_statement, context):
         with then:
             resolve_ast_node(if_statement[4], context)
         with otherwise:
+            # if/else scenario has 10 items
             if len(if_statement) == 10:
                 resolve_ast_node(if_statement[7], context)
             else:

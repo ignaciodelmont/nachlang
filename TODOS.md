@@ -1,5 +1,6 @@
 # TODOS
 
+- Change load/store of variables
 - Add Loops
 - Do runtime type checks on operations
 - Add Closures
