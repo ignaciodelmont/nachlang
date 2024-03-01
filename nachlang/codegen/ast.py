@@ -98,6 +98,11 @@ def resolve_binary_operation(binary_operation, context):
 
 
 def resolve_if_statement(if_statement, context):
+    """
+    If statement can be of two forms:
+    1. (if (expression) {statement_list})
+    2. (if (expression) {statement_list} {statement_list})
+    """
     resolved_conditional_expression = resolve_expression(
         if_statement[2]["value"], context
     )
@@ -111,6 +116,7 @@ def resolve_if_statement(if_statement, context):
         with then:
             resolve_ast_node(if_statement[4], context)
         with otherwise:
+            # if/else scenario has 10 items
             if len(if_statement) == 10:
                 resolve_ast_node(if_statement[7], context)
             else:
