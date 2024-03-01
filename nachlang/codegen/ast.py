@@ -1,6 +1,5 @@
 from nachlang.codegen import llvm
 from nachlang import symbol_table, utils
-import pprint
 from contextlib import contextmanager
 from functools import partial
 
@@ -55,7 +54,7 @@ def resolve_expression(expression, context):
     """
 
     def is_terminal_expression(exp):
-        return type(exp) != dict
+        return not isinstance(exp, dict)
 
     exp = utils._filter_parens(expression)[0]
 
