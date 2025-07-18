@@ -7,8 +7,8 @@ defn fib(a) {
     (if (a < 0)
     {return 0}
     )
-    
+
     return fib(a - 2) + fib(a-1)
 }
 
-print(fib(5))
+print(fib(31))

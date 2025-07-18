@@ -172,8 +172,8 @@ def define_load_bool(builder):
     fn_builder = ir.IRBuilder(function.append_basic_block())
     nach_type_ptr = function.args[0]
     bool_ptr = get_bool_pointer(fn_builder, nach_type_ptr)
-    bool = fn_builder.load(bool_ptr)
-    fn_builder.ret(bool)
+    boolean = fn_builder.load(bool_ptr)
+    fn_builder.ret(boolean)
 
 
 #
