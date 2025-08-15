@@ -192,6 +192,15 @@ def _allocate_nachtype(builder):
     """Allocates space for a NACHTYPE and returns a pointer to a NACHTYPE struct"""
     return builder.call(get_symbol_by_name(builder, "allocate_nachtype"), [])
 
+def get_alloc_size(builder, struct_type):
+    """
+    Calculates the size of a struct type for malloc using the GEP trick.
+    This is the portable and maintainable way to get a type's size.
+    """
+    null_ptr = ir.Constant(struct_type.as_pointer(), None)
+    gep_instr = builder.gep(null_ptr, [ir.Constant(INT32, 1)], inbounds=False)
+    return builder.ptrtoint(gep_instr, INT64)
+
 
 def define_allocate_nachtype(builder):
     """
@@ -201,11 +210,15 @@ def define_allocate_nachtype(builder):
     fnty = ir.FunctionType(NACHTYPE.as_pointer(), [])
     function = ir.Function(module, fnty, name="allocate_nachtype")
     fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
+
+    struct_size = get_alloc_size(fn_builder, NACHTYPE)
+
     i8_ptr = fn_builder.call(
         # TODO: Make sure that __sizeof__() actually returns the NACHTYPE size in llvm
         # and not the python object..
         get_symbol_by_name(fn_builder, "malloc"),
-        [INT64(NACHTYPE.__sizeof__())],
+        # [INT64(NACHTYPE.__sizeof__())],
+        [struct_size],
     )
     nach_type_ptr = fn_builder.bitcast(i8_ptr, NACHTYPE.as_pointer())
     fn_builder.ret(nach_type_ptr)
@@ -792,8 +805,8 @@ def define_is_truthy(builder):
     fn_builder = ir.IRBuilder(entry)
     nach_type_ptr = function.args[0]
 
-    true = allocate_bool(fn_builder, "true")
-    false = allocate_bool(fn_builder, "false")
+    true = get_symbol_by_name(fn_builder, "NACH_TRUE")
+    false = get_symbol_by_name(fn_builder, "NACH_FALSE")
 
     # By default return false
     default_block = fn_builder.append_basic_block("default")
@@ -812,9 +825,10 @@ def define_is_truthy(builder):
     # If string is empty return false, return true otherwise
     is_truthy_string_block = fn_builder.append_basic_block("is_truthy_string")
     fn_builder.position_at_end(is_truthy_string_block)
-    empty_string = allocate_string(fn_builder, "")
+    empty_string_ptr = get_symbol_by_name(fn_builder, "NACH_EMPTY_STRING")
+    # empty_string = allocate_string(fn_builder, "")
     compare_strings_result = compare_strings(
-        fn_builder, nach_type_ptr, empty_string, "=="
+        fn_builder, nach_type_ptr, empty_string_ptr, "=="
     )
     is_empty_bool = load_bool(fn_builder, compare_strings_result)
     with fn_builder.if_then(is_empty_bool):
@@ -831,7 +845,7 @@ def define_is_truthy(builder):
         load_type(fn_builder, nach_type_ptr), default_block
     )
     switch_handler.add_case(INT8(0), is_truthy_number_block)
-    # switch_handler.add_case(INT8(1), is_truthy_string_block)
+    switch_handler.add_case(INT8(1), is_truthy_string_block)
     switch_handler.add_case(INT8(2), is_truthy_bool_block)
 
 
@@ -950,7 +964,26 @@ def declare_strcmp(builder):
 
 
 def define_empty_string(builder):
-    global_constant(builder, "empty_string", _make_bytearray("".encode("utf8")))
+    global_constant(builder, "empty_string", _make_bytearray("\0".encode("utf8")))
+
+def define_nach_empty_string(builder):
+    """
+    Defines a global NACHTYPE constant for the empty string.
+    """
+    module = builder.module
+    emtpy_string_literal = get_symbol_by_name(builder, "empty_string")
+    empty_str_literal_ptr = emtpy_string_literal.gep(
+        [INT32(0), INT32(0)],
+    )
+    empty_string_val = ir.Constant(
+        NACHTYPE,
+        [INT8(1), NUMBER(0.0), empty_str_literal_ptr, BOOL(0)],
+    )
+    empty_string_global = ir.GlobalVariable(module, NACHTYPE, "NACH_EMPTY_STRING")
+    empty_string_global.initializer = empty_string_val
+    empty_string_global.linkage = "internal"
+    empty_string_global.global_constant = True
+
 
 def define_print_formats(builder):
     """
@@ -982,8 +1015,8 @@ def define_compare_strings(builder):
         get_symbol_by_name(fn_builder, "strcmp"), [string1, string2]
     )
 
-    false = allocate_bool(fn_builder, "false")
-    true = allocate_bool(fn_builder, "true")
+    false = get_symbol_by_name(fn_builder, "NACH_FALSE")
+    true = get_symbol_by_name(fn_builder, "NACH_TRUE")
 
     default_block = fn_builder.append_basic_block("default")
     fn_builder.position_at_end(default_block)
@@ -1120,6 +1153,7 @@ def initialize():
             define_print_formats,
             define_nach_print,
             define_empty_string,
+            define_nach_empty_string,
             define_compare_strings,
             define_is_truthy,
             define_validate_are_equal_type,
