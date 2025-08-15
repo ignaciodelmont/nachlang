@@ -216,8 +216,6 @@ def _allocate_string(builder, string):
     Allocates an llvm string in a NACHTYPE struct
     """
     nach_type_ptr = _allocate_nachtype(builder)
-
-    nach_print_(builder, nach_type_ptr)
     nach_type_string_ptr = builder.gep(
         nach_type_ptr, [INT32(0), INT32(2)], inbounds=True
     )
@@ -227,34 +225,155 @@ def _allocate_string(builder, string):
 
 
 def allocate_string(builder, string):
-    """
-    Allocates a python string in a NACHTYPE struct
+    # """
+    # Allocates a python string in a NACHTYPE struct
 
-    The STRING type is denoted as 1 in the NACHTYPE struct
+    # The STRING type is denoted as 1 in the NACHTYPE struct
+    # """
+    # string_with_null = string + "\0"
+    # value = ir.Constant(ir.ArrayType(STRING, len(string_with_null)), bytearray(string_with_null, "utf8"))
+    # allocated_str_space = builder.alloca(ir.ArrayType(STRING, len(string_with_null)))
+    # builder.store(value, allocated_str_space)
+    # pointer_to_first_char = builder.gep(
+    #     allocated_str_space, [INT32(0), INT32(0)], inbounds=True
+    # )
+
+    # return builder.call(get_symbol_by_name(builder, "allocate_string"), [pointer_to_first_char])
     """
-    value = ir.Constant(ir.ArrayType(STRING, len(string)), bytearray(string, "utf8"))
-    allocated_str_space = builder.alloca(ir.ArrayType(STRING, len(string)))
-    builder.store(value, allocated_str_space)
-    pointer_to_first_char = builder.gep(
-        allocated_str_space, [INT32(0), INT32(0)], inbounds=True
+    Allocates a python string in a NACHTYPE struct by creating a global
+    constant and calling the runtime function to copy it to the heap.
+    """
+    string_with_null = string + "\0"
+    value = ir.Constant(
+        ir.ArrayType(STRING, len(string_with_null)),
+        bytearray(string_with_null, "utf8"),
     )
-    loaded_ptr = builder.load(pointer_to_first_char)
-    str_ptr = builder.alloca(STRING)
-    builder.store(loaded_ptr, str_ptr, align=1)
-    return builder.call(get_symbol_by_name(builder, "allocate_string"), [str_ptr])
+    global_str = global_constant(builder, ".str", value)
+
+    pointer_to_first_char = builder.gep(
+        global_str, [INT32(0), INT32(0)], inbounds=True
+    )
+
+    return builder.call(
+        get_symbol_by_name(builder, "allocate_string"), [pointer_to_first_char]
+    )
+
+# TODO: Move this upper in the file
+def get_or_declare_c_function(module, name, return_type, arg_types):
+    """
+    Helper to get a function from the module, or declare it if it doesn't exist.
+    """
+    try:
+        # Check if the function is already declared
+        func = module.get_global(name)
+    except KeyError:
+        # If not, declare it
+        func_type = ir.FunctionType(return_type, arg_types)
+        func = ir.Function(module, func_type, name=name)
+    return func
 
 
+# def define_allocate_string(builder):
+#     """
+#     Defines the allocate_string function in the module
+#     """
+#     module = builder.module
+#     function_type = ir.FunctionType(NACHTYPE.as_pointer(), [STRING.as_pointer()])
+#     function = ir.Function(module, function_type, name="allocate_string")
+#     builder = ir.IRBuilder(function.append_basic_block())
+#     return_value = function.args[0]
+#     return builder.ret(_allocate_string(builder, return_value))
 def define_allocate_string(builder):
     """
-    Defines the allocate_string function in the module
+    Defines the `allocate_string` LLVM function.
+
+    This new version safely copies the incoming string to the heap.
+    """
+    # module = builder.module
+    # # 1. Declare the C standard library functions we'll need
+    # strlen_func = get_or_declare_c_function(
+    #     module, "strlen", INT64, [INT8.as_pointer()]
+    # )
+    # malloc_func = get_or_declare_c_function(
+    #     module, "malloc", INT8.as_pointer(), [INT64]
+    # )
+    # strcpy_func = get_or_declare_c_function(
+    #     module, "strcpy", INT8.as_pointer(), [INT8.as_pointer(), INT8.as_pointer()]
+    # )
+
+    # # 2. Define the 'allocate_string' function signature
+    # func_type = ir.FunctionType(NACHTYPE.as_pointer(), [INT8.as_pointer()])
+    # function = ir.Function(module, func_type, name="allocate_string")
+    # builder = ir.IRBuilder(function.append_basic_block(name="entry"))
+
+    # # The pointer to the original (likely stack-allocated) string
+    # original_str_ptr = function.args[0]
+
+    # # 3. Get the length of the original string
+    # str_len = builder.call(strlen_func, [original_str_ptr], name="str_len")
+
+    # # 4. Allocate memory on the heap for the new string
+    # # We need length + 1 bytes to include the null terminator
+    # size_for_malloc = builder.add(str_len, INT64(1), name="buffer_size")
+    # heap_buffer_ptr = builder.call(malloc_func, [size_for_malloc], name="heap_buffer")
+
+    # # 5. Copy the original string into the new heap buffer
+    # builder.call(strcpy_func, [heap_buffer_ptr, original_str_ptr])
+
+    # # 6. Now, proceed as before but using our new heap_buffer_ptr
+    # # Get a pointer to the existing 'allocate_nachtype' helper function
+    # allocate_nachtype_func = module.get_global("allocate_nachtype")
+    # nachtype_ptr = builder.call(allocate_nachtype_func, [], name="new_nachtype")
+
+    # # Get a pointer to the string field (index 2) inside the struct
+    # string_field_ptr = builder.gep(nachtype_ptr, [INT32(0), INT32(2)], name="string_field_ptr")
+    # # Store the pointer TO OUR HEAP COPY in the struct
+    # builder.store(heap_buffer_ptr, string_field_ptr)
+
+    # # Set the type tag for string (index 0) to 1
+    # type_field_ptr = builder.gep(nachtype_ptr, [INT32(0), INT32(0)], name="type_field_ptr")
+    # builder.store(INT8(1), type_field_ptr)
+
+    # builder.ret(nachtype_ptr)
+    # return function
+
+    """
+    Defines the allocate_string function in the module.
+    This function takes a pointer to a string literal, allocates heap memory,
+    copies the string to the new buffer, and returns a NACHTYPE containing
+    the pointer to the heap-allocated string.
     """
     module = builder.module
     function_type = ir.FunctionType(NACHTYPE.as_pointer(), [STRING.as_pointer()])
     function = ir.Function(module, function_type, name="allocate_string")
-    builder = ir.IRBuilder(function.append_basic_block())
-    return_value = function.args[0]
-    return builder.ret(_allocate_string(builder, return_value))
+    fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
 
+    source_ptr = function.args[0]
+
+    strlen_func = get_or_declare_c_function(
+        module, "strlen", INT64, [INT8.as_pointer()]
+    )
+    malloc_func = get_or_declare_c_function(
+        module, "malloc", INT8.as_pointer(), [INT64]
+    )
+    strcpy_func = get_or_declare_c_function(
+        module, "strcpy", INT8.as_pointer(), [INT8.as_pointer(), INT8.as_pointer()]
+    )
+    str_len = fn_builder.call(strlen_func, [source_ptr])
+
+    buffer_size = fn_builder.add(str_len, INT64(1))
+    heap_buffer = fn_builder.call(malloc_func, [buffer_size])
+
+    fn_builder.call(strcpy_func, [heap_buffer, source_ptr])
+
+    new_nachtype = _allocate_nachtype(fn_builder)
+
+    string_field_ptr = get_string_pointer(fn_builder, new_nachtype)
+    fn_builder.store(heap_buffer, string_field_ptr)
+
+    set_string_type(fn_builder, new_nachtype)
+
+    fn_builder.ret(new_nachtype)
 
 def _allocate_number(builder, value):
     """
@@ -304,10 +423,10 @@ def allocate_bool(builder, value):
     """
     Allocates a BOOL in a NACHTYPE struct
     """
-    return builder.call(
-        get_symbol_by_name(builder, "allocate_bool"),
-        [BOOL(1) if value == "true" else BOOL(0)],
-    )
+    true_ptr = get_symbol_by_name(builder, "NACH_TRUE")
+    false_ptr = get_symbol_by_name(builder, "NACH_FALSE")
+    is_true = ir.Constant(BOOL, value == "true")
+    return builder.select(is_true, true_ptr, false_ptr)
 
 
 def define_allocate_bool(builder):
@@ -588,27 +707,74 @@ def define_nach_print(builder):
     """
     Defines the nach_print function in the module
     """
+    # module = builder.module
+    # function_type = ir.FunctionType(VOID, [NACHTYPE.as_pointer()])
+    # function = ir.Function(module, function_type, name="nach_print")
+    # entry = function.append_basic_block("entry")
+    # fn_builder = ir.IRBuilder(entry)
+    # nach_type_ptr = function.args[0]
+    # fn = get_symbol_by_name(fn_builder, "printf")
+    # global_fmt = get_symbol_by_name(fn_builder, "printf_format")
+    # ptr_fmt = fn_builder.bitcast(global_fmt, STRING.as_pointer())
+    # fn_builder.call(
+    #     fn,
+    #     [
+    #         ptr_fmt,
+    #         load_number(fn_builder, nach_type_ptr),
+    #         load_string(fn_builder, nach_type_ptr),
+    #         load_bool(fn_builder, nach_type_ptr),
+    #         nach_type_ptr,
+    #     ],
+    # )
+    # fn_builder.ret_void()
     module = builder.module
     function_type = ir.FunctionType(VOID, [NACHTYPE.as_pointer()])
     function = ir.Function(module, function_type, name="nach_print")
     entry = function.append_basic_block("entry")
     fn_builder = ir.IRBuilder(entry)
     nach_type_ptr = function.args[0]
-    fn = get_symbol_by_name(fn_builder, "printf")
-    global_fmt = get_symbol_by_name(fn_builder, "printf_format")
-    ptr_fmt = fn_builder.bitcast(global_fmt, STRING.as_pointer())
-    fn_builder.call(
-        fn,
-        [
-            ptr_fmt,
-            load_number(fn_builder, nach_type_ptr),
-            load_string(fn_builder, nach_type_ptr),
-            load_bool(fn_builder, nach_type_ptr),
-            nach_type_ptr,
-        ],
-    )
-    fn_builder.ret_void()
+    printf_fn = get_symbol_by_name(fn_builder, "printf")
 
+    ptr_type = load_type(fn_builder, nach_type_ptr)
+
+    default_block = fn_builder.append_basic_block("default_print")
+    with fn_builder.goto_block(default_block):
+        fn_builder.ret_void()
+
+    number_block = fn_builder.append_basic_block("print_number")
+    with fn_builder.goto_block(number_block):
+        number_format_global = get_symbol_by_name(fn_builder, "number_format")
+        number_format_ptr = fn_builder.bitcast(
+            number_format_global, INT8.as_pointer()
+        )
+        number = load_number(fn_builder, nach_type_ptr)
+        fn_builder.call(printf_fn, [number_format_ptr, number])
+        fn_builder.ret_void()
+
+    string_block = fn_builder.append_basic_block("print_string")
+    with fn_builder.goto_block(string_block):
+        string_format_global = get_symbol_by_name(fn_builder, "string_format")
+        string_format_ptr = fn_builder.bitcast(
+            string_format_global, INT8.as_pointer()
+        )
+        string = load_string(fn_builder, nach_type_ptr)
+        fn_builder.call(printf_fn, [string_format_ptr, string])
+        fn_builder.ret_void()
+
+    bool_block = fn_builder.append_basic_block("print_bool")
+    with fn_builder.goto_block(bool_block):
+        bool_format_global = get_symbol_by_name(fn_builder, "bool_format")
+        bool_format_ptr = fn_builder.bitcast(bool_format_global, INT8.as_pointer())
+        boolean = load_bool(fn_builder, nach_type_ptr)
+        boolean_ext = fn_builder.zext(boolean, INT32)
+        fn_builder.call(printf_fn, [bool_format_ptr, boolean_ext])
+        fn_builder.ret_void()
+
+    fn_builder.position_at_end(entry)
+    switch_handler = fn_builder.switch(ptr_type, default_block)
+    switch_handler.add_case(INT8(0), number_block)
+    switch_handler.add_case(INT8(1), string_block)
+    switch_handler.add_case(INT8(2), bool_block)
 
 #
 # Conditionals
@@ -650,13 +816,8 @@ def define_is_truthy(builder):
     compare_strings_result = compare_strings(
         fn_builder, nach_type_ptr, empty_string, "=="
     )
-    with fn_builder.if_then(
-        fn_builder.fcmp_ordered(
-            "==",
-            load_number(fn_builder, compare_strings_result),
-            NUMBER(0),
-        )
-    ):
+    is_empty_bool = load_bool(fn_builder, compare_strings_result)
+    with fn_builder.if_then(is_empty_bool):
         fn_builder.ret(false)
     fn_builder.ret(true)
 
@@ -670,8 +831,9 @@ def define_is_truthy(builder):
         load_type(fn_builder, nach_type_ptr), default_block
     )
     switch_handler.add_case(INT8(0), is_truthy_number_block)
-    switch_handler.add_case(INT8(1), is_truthy_string_block)
+    # switch_handler.add_case(INT8(1), is_truthy_string_block)
     switch_handler.add_case(INT8(2), is_truthy_bool_block)
+
 
 
 def is_truthy(builder, nach_type_ptr):
@@ -760,16 +922,21 @@ def declare_printf(builder):
     """
     Declares printf function in the module
     """
-    module = builder.module
-    format = "double: %f | string: %s | bool: %d | address(ptr): %p \n\0"
+    # module = builder.module
+    # format_ = "double: %f | string: %s | bool: %d | address(ptr): %p \n\0"
 
-    # Make global constant for format string
+    # # Make global constant for format string
+    # cstring = INT8.as_pointer()
+    # fmt_bytes = _make_bytearray((format_).encode("utf8"))
+    # # TODO: This shouldn't be here. Remove once we have a nachlang string handler
+    # # Defines a global printing format that will be used when resolving prints
+    # global_constant(builder, "printf_format", fmt_bytes)
+    # fnty = ir.FunctionType(INT32, [cstring], var_arg=True)
+    # ir.Function(module, fnty, name="printf")
+
+    module = builder.module
     cstring = INT8.as_pointer()
-    fmt_bytes = _make_bytearray((format).encode("utf8"))
-    # TODO: This shouldn't be here. Remove once we have a nachlang string handler
-    # Defines a global printing format that will be used when resolving prints
-    global_constant(builder, "printf_format", fmt_bytes)
-    fnty = ir.FunctionType(NACHTYPE, [cstring], var_arg=True)
+    fnty = ir.FunctionType(INT32, [cstring], var_arg=True)
     ir.Function(module, fnty, name="printf")
 
 
@@ -784,6 +951,14 @@ def declare_strcmp(builder):
 
 def define_empty_string(builder):
     global_constant(builder, "empty_string", _make_bytearray("".encode("utf8")))
+
+def define_print_formats(builder):
+    """
+    Defines global format strings for printing different types.
+    """
+    global_constant(builder, "number_format", _make_bytearray(b"%f\n\0"))
+    global_constant(builder, "string_format", _make_bytearray(b"%s\n\0"))
+    global_constant(builder, "bool_format", _make_bytearray(b"bool(%d)\n\0"))
 
 
 def define_compare_strings(builder):
@@ -866,6 +1041,32 @@ def define_compare_strings(builder):
     switch_handler.add_case(INT8(5), gte_block)
 
 
+def define_global_booleans(builder):
+    """
+    Defines global constant NACHTYPEs for true and false.
+    """
+    module = builder.module
+
+    # The string pointer for a boolean is null.
+    string_ptr_null = ir.Constant(STRING.as_pointer(), None)
+
+    true_val = ir.Constant(
+        NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(1)]
+    )
+    false_val = ir.Constant(
+        NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(0)]
+    )
+
+    true_global = ir.GlobalVariable(module, NACHTYPE, "NACH_TRUE")
+    true_global.initializer = true_val
+    true_global.linkage = "internal"
+    true_global.global_constant = True
+
+    false_global = ir.GlobalVariable(module, NACHTYPE, "NACH_FALSE")
+    false_global.initializer = false_val
+    false_global.linkage = "internal"
+    false_global.global_constant = True
+
 def compare_strings(builder, string1, string2, op_type):
     """
     Compares two strings and returns a NACHTYPE struct
@@ -913,8 +1114,10 @@ def initialize():
             define_load_string,
             define_load_bool,
             define_allocate_number,
+            define_global_booleans,
             define_allocate_string,
             define_allocate_bool,
+            define_print_formats,
             define_nach_print,
             define_empty_string,
             define_compare_strings,
