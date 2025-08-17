@@ -703,7 +703,6 @@ def define_is_truthy(builder):
     is_truthy_string_block = fn_builder.append_basic_block("is_truthy_string")
     fn_builder.position_at_end(is_truthy_string_block)
     empty_string_ptr = get_symbol_by_name(fn_builder, "NACH_EMPTY_STRING")
-    # empty_string = allocate_string(fn_builder, "")
     compare_strings_result = compare_strings(
         fn_builder, nach_type_ptr, empty_string_ptr, "=="
     )
