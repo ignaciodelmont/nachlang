@@ -239,20 +239,6 @@ def _allocate_string(builder, string):
 
 
 def allocate_string(builder, string):
-    # """
-    # Allocates a python string in a NACHTYPE struct
-
-    # The STRING type is denoted as 1 in the NACHTYPE struct
-    # """
-    # string_with_null = string + "\0"
-    # value = ir.Constant(ir.ArrayType(STRING, len(string_with_null)), bytearray(string_with_null, "utf8"))
-    # allocated_str_space = builder.alloca(ir.ArrayType(STRING, len(string_with_null)))
-    # builder.store(value, allocated_str_space)
-    # pointer_to_first_char = builder.gep(
-    #     allocated_str_space, [INT32(0), INT32(0)], inbounds=True
-    # )
-
-    # return builder.call(get_symbol_by_name(builder, "allocate_string"), [pointer_to_first_char])
     """
     Allocates a python string in a NACHTYPE struct by creating a global
     constant and calling the runtime function to copy it to the heap.
@@ -286,70 +272,7 @@ def get_or_declare_c_function(module, name, return_type, arg_types):
     return func
 
 
-# def define_allocate_string(builder):
-#     """
-#     Defines the allocate_string function in the module
-#     """
-#     module = builder.module
-#     function_type = ir.FunctionType(NACHTYPE.as_pointer(), [STRING.as_pointer()])
-#     function = ir.Function(module, function_type, name="allocate_string")
-#     builder = ir.IRBuilder(function.append_basic_block())
-#     return_value = function.args[0]
-#     return builder.ret(_allocate_string(builder, return_value))
 def define_allocate_string(builder):
-    """
-    Defines the `allocate_string` LLVM function.
-
-    This new version safely copies the incoming string to the heap.
-    """
-    # module = builder.module
-    # # 1. Declare the C standard library functions we'll need
-    # strlen_func = get_or_declare_c_function(
-    #     module, "strlen", INT64, [INT8.as_pointer()]
-    # )
-    # malloc_func = get_or_declare_c_function(
-    #     module, "malloc", INT8.as_pointer(), [INT64]
-    # )
-    # strcpy_func = get_or_declare_c_function(
-    #     module, "strcpy", INT8.as_pointer(), [INT8.as_pointer(), INT8.as_pointer()]
-    # )
-
-    # # 2. Define the 'allocate_string' function signature
-    # func_type = ir.FunctionType(NACHTYPE.as_pointer(), [INT8.as_pointer()])
-    # function = ir.Function(module, func_type, name="allocate_string")
-    # builder = ir.IRBuilder(function.append_basic_block(name="entry"))
-
-    # # The pointer to the original (likely stack-allocated) string
-    # original_str_ptr = function.args[0]
-
-    # # 3. Get the length of the original string
-    # str_len = builder.call(strlen_func, [original_str_ptr], name="str_len")
-
-    # # 4. Allocate memory on the heap for the new string
-    # # We need length + 1 bytes to include the null terminator
-    # size_for_malloc = builder.add(str_len, INT64(1), name="buffer_size")
-    # heap_buffer_ptr = builder.call(malloc_func, [size_for_malloc], name="heap_buffer")
-
-    # # 5. Copy the original string into the new heap buffer
-    # builder.call(strcpy_func, [heap_buffer_ptr, original_str_ptr])
-
-    # # 6. Now, proceed as before but using our new heap_buffer_ptr
-    # # Get a pointer to the existing 'allocate_nachtype' helper function
-    # allocate_nachtype_func = module.get_global("allocate_nachtype")
-    # nachtype_ptr = builder.call(allocate_nachtype_func, [], name="new_nachtype")
-
-    # # Get a pointer to the string field (index 2) inside the struct
-    # string_field_ptr = builder.gep(nachtype_ptr, [INT32(0), INT32(2)], name="string_field_ptr")
-    # # Store the pointer TO OUR HEAP COPY in the struct
-    # builder.store(heap_buffer_ptr, string_field_ptr)
-
-    # # Set the type tag for string (index 0) to 1
-    # type_field_ptr = builder.gep(nachtype_ptr, [INT32(0), INT32(0)], name="type_field_ptr")
-    # builder.store(INT8(1), type_field_ptr)
-
-    # builder.ret(nachtype_ptr)
-    # return function
-
     """
     Defines the allocate_string function in the module.
     This function takes a pointer to a string literal, allocates heap memory,
@@ -930,19 +853,7 @@ def global_constant(builder, name, value, linkage="internal"):
 def declare_printf(builder):
     """
     Declares printf function in the module
-    """
-    # module = builder.module
-    # format_ = "double: %f | string: %s | bool: %d | address(ptr): %p \n\0"
-
-    # # Make global constant for format string
-    # cstring = INT8.as_pointer()
-    # fmt_bytes = _make_bytearray((format_).encode("utf8"))
-    # # TODO: This shouldn't be here. Remove once we have a nachlang string handler
-    # # Defines a global printing format that will be used when resolving prints
-    # global_constant(builder, "printf_format", fmt_bytes)
-    # fnty = ir.FunctionType(INT32, [cstring], var_arg=True)
-    # ir.Function(module, fnty, name="printf")
-
+    """ß
     module = builder.module
     cstring = INT8.as_pointer()
     fnty = ir.FunctionType(INT32, [cstring], var_arg=True)
