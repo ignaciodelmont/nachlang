@@ -1,6 +1,7 @@
 import rply
-from nachlang.lexer import tokens as tk, lexer
 
+from nachlang.lexer import lexer
+from nachlang.lexer import tokens as tk
 
 pg = rply.ParserGenerator(
     tokens=list(map(lambda t: t[0], tk)),

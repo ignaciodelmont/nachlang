@@ -1,9 +1,9 @@
 from rply import Token
 
 
-def _filter_parens(iterable):
+def filter_parens(iterable):
     def filter_fn(item):
-        if type(item) == Token and item.name in ["CLOSE_PAREN", "OPEN_PAREN"]:
+        if isinstance(item, Token) and item.name in ["CLOSE_PAREN", "OPEN_PAREN"]:
             return False
         return True
 

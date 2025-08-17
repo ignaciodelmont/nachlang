@@ -1,7 +1,8 @@
-from nachlang.codegen import llvm
-from nachlang import symbol_table, utils
 from contextlib import contextmanager
 from functools import partial
+
+from nachlang import symbol_table, utils
+from nachlang.codegen import llvm
 
 
 @contextmanager
@@ -56,7 +57,7 @@ def resolve_expression(expression, context):
     def is_terminal_expression(exp):
         return not isinstance(exp, dict)
 
-    exp = utils._filter_parens(expression)[0]
+    exp = utils.filter_parens(expression)[0]
 
     if is_terminal_expression(exp):
         expression_type = exp.name
