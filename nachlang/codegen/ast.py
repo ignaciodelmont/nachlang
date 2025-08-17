@@ -1,7 +1,8 @@
-from nachlang.codegen import llvm
-from nachlang import symbol_table, utils
 from contextlib import contextmanager
 from functools import partial
+
+from nachlang import symbol_table, utils
+from nachlang.codegen import llvm
 
 
 @contextmanager

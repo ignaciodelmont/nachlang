@@ -1,5 +1,6 @@
-import graphviz as gv
 import uuid
+
+import graphviz as gv
 
 g = gv.Graph(name="Program ast")
 

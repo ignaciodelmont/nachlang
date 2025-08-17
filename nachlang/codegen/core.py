@@ -1,4 +1,4 @@
-from llvmlite import ir, binding
+from llvmlite import binding, ir
 
 global_context = ir.global_context
 
@@ -26,6 +26,10 @@ CONDITIONAL_OPS_MAPPINGS = {
     ">=": INT8(5),
 }
 
+
+USE_GC = False
+GC_VERIFIED_PATH = None
+
 # TODO: https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/appendix-a-how-to-implement-a-string-type-in-llvm/index.html
 # TODO: REFERENCE https://www.udemy.com/course/programming-language-with-llvm/learn/lecture/37292452?start=0#overview
 
@@ -38,6 +42,11 @@ CONDITIONAL_OPS_MAPPINGS = {
 def get_symbol_by_name(builder, name):
     module = builder.module
     return module.get_global(name)
+
+
+def get_malloc_symbol_by_name(builder):
+    malloc_name = "GC_malloc" if USE_GC else "malloc"
+    return get_symbol_by_name(builder, malloc_name)
 
 
 #
@@ -185,7 +194,8 @@ def declare_malloc(builder):
     """
     module = builder.module
     fnty = ir.FunctionType(INT8.as_pointer(), [INT64])
-    ir.Function(module, fnty, name="malloc")
+    malloc_name = "GC_malloc" if USE_GC else "malloc"
+    ir.Function(module, fnty, name=malloc_name)
 
 
 def _allocate_nachtype(builder):
@@ -215,27 +225,11 @@ def define_allocate_nachtype(builder):
     struct_size = get_alloc_size(fn_builder, NACHTYPE)
 
     i8_ptr = fn_builder.call(
-        # TODO: Make sure that __sizeof__() actually returns the NACHTYPE size in llvm
-        # and not the python object..
-        get_symbol_by_name(fn_builder, "malloc"),
-        # [INT64(NACHTYPE.__sizeof__())],
+        get_malloc_symbol_by_name(fn_builder),
         [struct_size],
     )
     nach_type_ptr = fn_builder.bitcast(i8_ptr, NACHTYPE.as_pointer())
     fn_builder.ret(nach_type_ptr)
-
-
-def _allocate_string(builder, string):
-    """
-    Allocates an llvm string in a NACHTYPE struct
-    """
-    nach_type_ptr = _allocate_nachtype(builder)
-    nach_type_string_ptr = builder.gep(
-        nach_type_ptr, [INT32(0), INT32(2)], inbounds=True
-    )
-    builder.store(string, nach_type_string_ptr)
-    set_string_type(builder, nach_type_ptr)
-    return nach_type_ptr
 
 
 def allocate_string(builder, string):
@@ -257,21 +251,6 @@ def allocate_string(builder, string):
     )
 
 
-# TODO: Move this upper in the file
-def get_or_declare_c_function(module, name, return_type, arg_types):
-    """
-    Helper to get a function from the module, or declare it if it doesn't exist.
-    """
-    try:
-        # Check if the function is already declared
-        func = module.get_global(name)
-    except KeyError:
-        # If not, declare it
-        func_type = ir.FunctionType(return_type, arg_types)
-        func = ir.Function(module, func_type, name=name)
-    return func
-
-
 def define_allocate_string(builder):
     """
     Defines the allocate_string function in the module.
@@ -286,15 +265,12 @@ def define_allocate_string(builder):
 
     source_ptr = function.args[0]
 
-    strlen_func = get_or_declare_c_function(
-        module, "strlen", INT64, [INT8.as_pointer()]
-    )
-    malloc_func = get_or_declare_c_function(
-        module, "malloc", INT8.as_pointer(), [INT64]
-    )
-    strcpy_func = get_or_declare_c_function(
-        module, "strcpy", INT8.as_pointer(), [INT8.as_pointer(), INT8.as_pointer()]
-    )
+    strlen_func = get_symbol_by_name(builder, "strlen")
+
+    malloc_func = get_malloc_symbol_by_name(fn_builder)
+
+    strcpy_func = get_symbol_by_name(builder, "strcpy")
+
     str_len = fn_builder.call(strlen_func, [source_ptr])
 
     buffer_size = fn_builder.add(str_len, INT64(1))
@@ -853,10 +829,10 @@ def global_constant(builder, name, value, linkage="internal"):
 def declare_printf(builder):
     """
     Declares printf function in the module
-    """ß
+    """
     module = builder.module
     cstring = INT8.as_pointer()
-    fnty = ir.FunctionType(INT32, [cstring], var_arg=True)
+    fnty = ir.FunctionType(INT64, [cstring], var_arg=True)
     ir.Function(module, fnty, name="printf")
 
 
@@ -867,6 +843,26 @@ def declare_strcmp(builder):
     module = builder.module
     fnty = ir.FunctionType(INT32, [STRING.as_pointer(), STRING.as_pointer()])
     ir.Function(module, fnty, name="strcmp")
+
+
+def declare_strcpy(builder):
+    """
+    Declares strcpy function in the module
+    """
+    module = builder.module
+    fnty = ir.FunctionType(
+        STRING.as_pointer(), [STRING.as_pointer(), STRING.as_pointer()]
+    )
+    ir.Function(module, fnty, name="strcpy")
+
+
+def declare_strlen(builder):
+    """
+    Declares strlen function in the module
+    """
+    module = builder.module
+    fnty = ir.FunctionType(INT64, [STRING.as_pointer()])
+    ir.Function(module, fnty, name="strlen")
 
 
 def define_empty_string(builder):
@@ -1033,6 +1029,9 @@ def initialize():
     binding.initialize_native_target()
     binding.initialize_native_asmprinter()
 
+    if USE_GC and GC_VERIFIED_PATH:
+        binding.load_library_permanently(GC_VERIFIED_PATH)
+
     module = ir.Module(name="nachlag_core")
     module.triple = binding.get_default_triple()
     func_type = ir.FunctionType(VOID, [], False)
@@ -1045,6 +1044,8 @@ def initialize():
             declare_printf,
             declare_malloc,
             declare_strcmp,
+            declare_strcpy,
+            declare_strlen,
             define_allocate_nachtype,
             define_load_number,
             define_load_number_as_int,
