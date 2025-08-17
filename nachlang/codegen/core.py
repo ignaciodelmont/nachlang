@@ -620,26 +620,6 @@ def define_nach_print(builder):
     """
     Defines the nach_print function in the module
     """
-    # module = builder.module
-    # function_type = ir.FunctionType(VOID, [NACHTYPE.as_pointer()])
-    # function = ir.Function(module, function_type, name="nach_print")
-    # entry = function.append_basic_block("entry")
-    # fn_builder = ir.IRBuilder(entry)
-    # nach_type_ptr = function.args[0]
-    # fn = get_symbol_by_name(fn_builder, "printf")
-    # global_fmt = get_symbol_by_name(fn_builder, "printf_format")
-    # ptr_fmt = fn_builder.bitcast(global_fmt, STRING.as_pointer())
-    # fn_builder.call(
-    #     fn,
-    #     [
-    #         ptr_fmt,
-    #         load_number(fn_builder, nach_type_ptr),
-    #         load_string(fn_builder, nach_type_ptr),
-    #         load_bool(fn_builder, nach_type_ptr),
-    #         nach_type_ptr,
-    #     ],
-    # )
-    # fn_builder.ret_void()
     module = builder.module
     function_type = ir.FunctionType(VOID, [NACHTYPE.as_pointer()])
     function = ir.Function(module, function_type, name="nach_print")
