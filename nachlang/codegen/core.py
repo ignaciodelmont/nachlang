@@ -192,6 +192,7 @@ def _allocate_nachtype(builder):
     """Allocates space for a NACHTYPE and returns a pointer to a NACHTYPE struct"""
     return builder.call(get_symbol_by_name(builder, "allocate_nachtype"), [])
 
+
 def get_alloc_size(builder, struct_type):
     """
     Calculates the size of a struct type for malloc using the GEP trick.
@@ -263,13 +264,12 @@ def allocate_string(builder, string):
     )
     global_str = global_constant(builder, ".str", value)
 
-    pointer_to_first_char = builder.gep(
-        global_str, [INT32(0), INT32(0)], inbounds=True
-    )
+    pointer_to_first_char = builder.gep(global_str, [INT32(0), INT32(0)], inbounds=True)
 
     return builder.call(
         get_symbol_by_name(builder, "allocate_string"), [pointer_to_first_char]
     )
+
 
 # TODO: Move this upper in the file
 def get_or_declare_c_function(module, name, return_type, arg_types):
@@ -387,6 +387,7 @@ def define_allocate_string(builder):
     set_string_type(fn_builder, new_nachtype)
 
     fn_builder.ret(new_nachtype)
+
 
 def _allocate_number(builder, value):
     """
@@ -757,9 +758,7 @@ def define_nach_print(builder):
     number_block = fn_builder.append_basic_block("print_number")
     with fn_builder.goto_block(number_block):
         number_format_global = get_symbol_by_name(fn_builder, "number_format")
-        number_format_ptr = fn_builder.bitcast(
-            number_format_global, INT8.as_pointer()
-        )
+        number_format_ptr = fn_builder.bitcast(number_format_global, INT8.as_pointer())
         number = load_number(fn_builder, nach_type_ptr)
         fn_builder.call(printf_fn, [number_format_ptr, number])
         fn_builder.ret_void()
@@ -767,9 +766,7 @@ def define_nach_print(builder):
     string_block = fn_builder.append_basic_block("print_string")
     with fn_builder.goto_block(string_block):
         string_format_global = get_symbol_by_name(fn_builder, "string_format")
-        string_format_ptr = fn_builder.bitcast(
-            string_format_global, INT8.as_pointer()
-        )
+        string_format_ptr = fn_builder.bitcast(string_format_global, INT8.as_pointer())
         string = load_string(fn_builder, nach_type_ptr)
         fn_builder.call(printf_fn, [string_format_ptr, string])
         fn_builder.ret_void()
@@ -788,6 +785,7 @@ def define_nach_print(builder):
     switch_handler.add_case(INT8(0), number_block)
     switch_handler.add_case(INT8(1), string_block)
     switch_handler.add_case(INT8(2), bool_block)
+
 
 #
 # Conditionals
@@ -849,7 +847,6 @@ def define_is_truthy(builder):
     switch_handler.add_case(INT8(2), is_truthy_bool_block)
 
 
-
 def is_truthy(builder, nach_type_ptr):
     """
     Returns a BOOL value indicating if the nach_type_ptr is truthy
@@ -892,11 +889,9 @@ def call_function(builder, fn_name, fn_args):
 # If statements
 #
 
+
 def if_statement(builder, conditional_expression):
-    return builder.if_else(
-        load_bool(builder, conditional_expression)
-    )
-        
+    return builder.if_else(load_bool(builder, conditional_expression))
 
 
 #
@@ -965,6 +960,7 @@ def declare_strcmp(builder):
 
 def define_empty_string(builder):
     global_constant(builder, "empty_string", _make_bytearray("\0".encode("utf8")))
+
 
 def define_nach_empty_string(builder):
     """
@@ -1083,12 +1079,8 @@ def define_global_booleans(builder):
     # The string pointer for a boolean is null.
     string_ptr_null = ir.Constant(STRING.as_pointer(), None)
 
-    true_val = ir.Constant(
-        NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(1)]
-    )
-    false_val = ir.Constant(
-        NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(0)]
-    )
+    true_val = ir.Constant(NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(1)])
+    false_val = ir.Constant(NACHTYPE, [INT8(2), NUMBER(0.0), string_ptr_null, BOOL(0)])
 
     true_global = ir.GlobalVariable(module, NACHTYPE, "NACH_TRUE")
     true_global.initializer = true_val
@@ -1099,6 +1091,7 @@ def define_global_booleans(builder):
     false_global.initializer = false_val
     false_global.linkage = "internal"
     false_global.global_constant = True
+
 
 def compare_strings(builder, string1, string2, op_type):
     """

@@ -15,7 +15,10 @@ def generate_ast(program):
 
 
 def _cmd_compile_and_run(
-    filename: str, output_ll: bool = False, graph_ast: bool = False, compile_only: bool = False
+    filename: str,
+    output_ll: bool = False,
+    graph_ast: bool = False,
+    compile_only: bool = False,
 ):
     with open(filename, "r") as f:
         program = f.read()
@@ -36,15 +39,19 @@ def _cmd_compile_and_run(
     if compile_only:
         return
 
-    func_ptr = engine.get_function_address("main")    
+    func_ptr = engine.get_function_address("main")
     cfunc = CFUNCTYPE(None)(func_ptr)
 
     result = cfunc()
     print("Result", result)
-    
+
+
 @app.command()
 def cmd_compile_and_run(
-    filename: str, output_ll: bool = False, graph_ast: bool = False, compile_only: bool = False
+    filename: str,
+    output_ll: bool = False,
+    graph_ast: bool = False,
+    compile_only: bool = False,
 ):
     _cmd_compile_and_run(filename, output_ll, graph_ast, compile_only)
 
