@@ -34,7 +34,9 @@ def statement_list(p):
 
 @pg.production("statement : expression")
 @pg.production("statement : define_var")
+@pg.production("statement : mutate_var")
 @pg.production("statement : if_statement")
+@pg.production("statement : loop_statement")
 @pg.production("statement : define_function")
 @pg.production("statement : return")
 def statement(p):
@@ -49,6 +51,13 @@ def statement(p):
 )
 def if_statement(p):
     return build_response("if_statement", p)
+
+
+@pg.production(
+    "loop_statement : OPEN_PAREN LOOP expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
+)
+def loop_statement(p):
+    return build_response("loop_statement", p)
 
 
 @pg.production("expression : OPEN_PAREN expression CLOSE_PAREN")
@@ -87,6 +96,11 @@ def binop(p):
 @pg.production("define_var : DEF VAR expression")
 def define_var(p):
     return build_response("define_var", p)
+
+
+@pg.production("mutate_var : MUT VAR expression")
+def mutate_var(p):
+    return build_response("mutate_var", p)
 
 
 @pg.production("return : RETURN")

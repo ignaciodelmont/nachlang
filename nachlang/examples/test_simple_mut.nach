@@ -1,0 +1,4 @@
+def x 10
+print(x)
+mut x 20
+print(x)

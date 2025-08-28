@@ -69,6 +69,24 @@ def add_reference(scope_path, name, reference):
     return scope
 
 
+def update_reference(scope_path, name, reference):
+    """
+    Updates an existing reference in the symbol table.
+    Searches up the scope chain to find where the variable is defined.
+    """
+    for i in range(len(scope_path)):
+        if i == 0:
+            scope = get_scope(scope_path)
+        else:
+            scope = get_scope(scope_path[:-i])
+
+        if name in scope["references"]:
+            scope["references"][name] = reference
+            return scope
+
+    raise Exception(f"'{name}' couldn't be found in scope for update")
+
+
 def add_return(scope_path, reference):
     # TODO: I believe this is wrong, I don't need to add the return info here
     # this was here in an attempt to resolve the return type of a function
