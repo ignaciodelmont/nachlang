@@ -1,26 +1,27 @@
-# counter = 1
+counter = 1
+res = 0
+while counter < 100000001:
+    counter = counter + 1
+    res = counter / 100
 
-# while counter < 100000000:
-#     counter = counter + 1
-
-# print(counter)
-
-def fib(n):
-    if n == 0 or n == 1:
-        return 1
+print(counter)
+print(res)
+# def fib(n):
+#     if n == 0 or n == 1:
+#         return 1
     
-    a = 1
-    b = 1
-    i = 2
+#     a = 1
+#     b = 1
+#     i = 2
 
-    res = 0
+#     res = 0
 
-    while i <= n:
-        res = a + b
-        a = b
-        b = res
-        i = i + 1
+#     while i <= n:
+#         res = a + b
+#         a = b
+#         b = res
+#         i = i + 1
 
-    return res
+#     return res
 
-print(fib(70))
+# print(fib(77))
