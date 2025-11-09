@@ -3,6 +3,7 @@ from functools import partial
 
 from nachlang import symbol_table, utils
 from nachlang.codegen import llvm
+from nachlang.codegen.core import NACHTYPE
 
 
 @contextmanager
@@ -124,6 +125,48 @@ def resolve_if_statement(if_statement, context):
                 pass
 
 
+def resolve_loop_statement(loop_statement, context):
+    """
+    Loop statement form:
+    (loop expression {statement_list})
+    
+    Creates a while-style loop that continues as long as the condition is truthy.
+    """
+    builder = context["builder"]
+    
+    # Create basic blocks for the loop
+    loop_condition_block = builder.append_basic_block("loop_condition")
+    loop_body_block = builder.append_basic_block("loop_body")
+    loop_end_block = builder.append_basic_block("loop_end")
+    
+    # Jump to condition check
+    builder.branch(loop_condition_block)
+    
+    # Condition block: evaluate condition and branch accordingly
+    builder.position_at_end(loop_condition_block)
+    resolved_conditional_expression = resolve_expression(
+        loop_statement[2]["value"], context
+    )
+    casted_conditional_expression = llvm.is_truthy(
+        builder, resolved_conditional_expression
+    )
+    
+    # Extract the boolean value and create conditional branch
+    from nachlang.codegen.core import load_bool
+    condition_bool = load_bool(builder, casted_conditional_expression)
+    builder.cbranch(condition_bool, loop_body_block, loop_end_block)
+    
+    # Body block: execute loop body and jump back to condition
+    builder.position_at_end(loop_body_block)
+    resolve_ast_node(loop_statement[4], context)
+    # Only branch back if the current block isn't terminated (e.g., by a return statement)
+    if not builder.block.is_terminated:
+        builder.branch(loop_condition_block)
+    
+    # End block: continue after loop
+    builder.position_at_end(loop_end_block)
+
+
 def resolve_print_expression(print_exp, context):
     nach_val_to_resolve = print_exp[2]
     nach_val = resolve_expression(nach_val_to_resolve["value"], context)
@@ -144,10 +187,12 @@ def resolve_defn_function(function_definition, context):
     fn_builder, fn = llvm.defn_function(context["builder"], fn_name, len(fn_arg_names))
     with nested_scope_context(context, fn_builder, fn_name) as nested_context:
         fn_args = fn.args
-        [
-            symbol_table.add_reference(nested_context["scope_path"], arg_name, arg)
-            for arg_name, arg in zip(fn_arg_names, fn_args)
-        ]
+        # Allocate stack space for each function argument to make them mutable
+        for arg_name, arg in zip(fn_arg_names, fn_args):
+            arg_alloca = fn_builder.alloca(NACHTYPE.as_pointer(), name=arg_name)
+            fn_builder.store(arg, arg_alloca)
+            symbol_table.add_reference(nested_context["scope_path"], arg_name, arg_alloca)
+        
         resolve_ast_node(function_definition[6], nested_context)
 
         # NOTE: if the last block of a function is not terminated, i.e there's no return
@@ -191,7 +236,40 @@ def resolve_define_var(define_var, context):
     var_name = define_var[1].value
     expression = define_var[2]
     resolved_expression = resolve_expression(expression["value"], context)
-    symbol_table.add_reference(context["scope_path"], var_name, resolved_expression)
+    
+    # Allocate stack space for the variable
+    builder = context["builder"]
+    var_alloca = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
+    
+    # Store the initial value
+    builder.store(resolved_expression, var_alloca)
+    
+    # Store the memory location (not the value) in the symbol table
+    symbol_table.add_reference(context["scope_path"], var_name, var_alloca)
+    return resolved_expression
+
+
+def resolve_mutate_var(mutate_var, context):
+    """
+    Resolves a variable mutation
+
+    Args:
+        mutate_var: A list representing a variable mutation
+            [mut_token, var_token, expression]
+
+        context: A dict representing the context
+    """
+    var_name = mutate_var[1].value
+    expression = mutate_var[2]
+    resolved_expression = resolve_expression(expression["value"], context)
+    
+    # Get the memory location of the variable
+    var_alloca = symbol_table.get_reference(context["scope_path"], var_name)
+    
+    # Store the new value to the memory location
+    builder = context["builder"]
+    builder.store(resolved_expression, var_alloca)
+    
     return resolved_expression
 
 
@@ -205,7 +283,11 @@ def resolve_var(resolve_var, context):
     """
 
     var_name = resolve_var.value
-    return symbol_table.get_reference(context["scope_path"], var_name)
+    var_alloca = symbol_table.get_reference(context["scope_path"], var_name)
+    
+    # Load the value from the memory location
+    builder = context["builder"]
+    return builder.load(var_alloca, name=f"{var_name}_val")
 
 
 #
@@ -237,6 +319,7 @@ def resolve_bool(bool, context):
 
 nodes = {
     "define_var": resolve_define_var,
+    "mutate_var": resolve_mutate_var,
     # "argument_values": resolve_argument_values,
     "define_function": resolve_defn_function,
     "call_function": resolve_call_function,
@@ -249,6 +332,7 @@ nodes = {
     "statement_list": resolve_with_no_returns,
     "statement": resolve_with_no_returns,
     "if_statement": resolve_if_statement,
+    "loop_statement": resolve_loop_statement,
     "BOOL": resolve_bool,
     "NUMBER": resolve_number,
     "STRING": resolve_string,

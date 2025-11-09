@@ -44,9 +44,8 @@ def _cmd_compile_and_run(
     output_ll: bool = False,
     graph_ast: bool = False,
     compile_only: bool = False,
-    libgc_path: Optional[str] = None,
+    libgc_path: Optional[str] = None, # "/opt/homebrew/lib/libgc.1.5.4.dylib"
 ):
-    libgc_path = libgc_path or "/opt/homebrew/lib/libgc.1.5.4.dylib"
     with open(filename, "r", encoding="utf-8") as f:
         program = f.read()
 

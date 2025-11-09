@@ -38,6 +38,7 @@ tokens = [
     ("DEFN", r"defn"),
     # Vars
     ("DEF", r"def"),
+    ("MUT", r"mut"),
     ("VAR", r"[a-zA-Z_][a-zA-Z0-9_]*"),
     ("ASSIGN", r"="),
     # Number

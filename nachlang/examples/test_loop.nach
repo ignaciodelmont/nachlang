@@ -1,0 +1,33 @@
+def counter 1
+def res 0
+(loop (counter < 100000001) {
+   mut counter counter + 1
+   mut res (counter / 100)
+})
+print(counter)
+print(res)
+
+
+#defn fib(n) {
+#    (if (n == 0 or n == 1)
+#        {return 1}
+#    )
+#
+#    def a 1
+#    def b 1
+#    def i 2
+#    def res 0
+#
+#    (loop (i <= n) {
+#        mut res a + b
+#        mut a b
+#        mut b res
+#        mut i i + 1
+#    })
+#
+#    return res
+#
+#}
+#
+#
+#print(fib(77)) # Last safe fib value
