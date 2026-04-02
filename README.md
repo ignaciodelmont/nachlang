@@ -25,3 +25,9 @@ As the project gets more mature I'll start refactoring.
 *llvm 15*: `brew install llvm@15`
 
 *Boehm Garbage Collector*: `brew install bdw-gc`
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `NACHLANG_PARSER_WARNINGS` | Set to any non-empty value to enable rply parser generation warnings (e.g. shift/reduce conflicts). Warnings are suppressed by default. |
