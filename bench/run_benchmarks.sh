@@ -164,12 +164,25 @@ sysctl -n machdep.cpu.brand_string 2>/dev/null || true
 echo "RAM:      $(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.0f GB", $1/1024/1024/1024}')"
 echo "python:   $(python3 --version 2>&1)"
 echo "nachlang: $NACHLANG_CMD"
-echo "opt:      $(opt --version 2>/dev/null | awk '/LLVM version/ {print $NF}') ($(command -v opt))"
+OPT_VERSION=$(opt --version 2>/dev/null | awk '/LLVM version/ {print $NF}')
+echo "opt:      ${OPT_VERSION:-unknown} ($(command -v opt))"
 echo "lli:      $(lli --version 2>/dev/null | awk '/LLVM version/ {print $NF}') ($(command -v lli))"
 if [ -f "$LIBGC_PATH" ]; then
     echo "libgc:    $LIBGC_PATH"
 else
     echo "libgc:    MISSING at $LIBGC_PATH -- GC configurations will be skipped"
+fi
+
+# The allocator attributes nachlang puts on GC_malloc need LLVM 15 or newer;
+# `allockind` does not parse under 14. The JIT always gets them because
+# llvmlite bundles LLVM 15, but IR handed to an older external opt must not.
+GC_ATTR_FLAG=()
+if [ "${OPT_VERSION%%.*}" -lt 15 ] 2>/dev/null; then
+    GC_ATTR_FLAG=(--no-gc-alloc-attrs)
+    echo ""
+    echo "NOTE: opt is LLVM ${OPT_VERSION}. Emitting GC IR with --no-gc-alloc-attrs so it"
+    echo "      parses, which costs the AOT GC configurations their allocation elision."
+    echo "      Install llvm@15 or newer to measure those with attributes enabled."
 fi
 echo ""
 
@@ -227,40 +240,58 @@ for entry in "${BENCHMARKS[@]}"; do
     measure "Python 3" "$expected" python3 "$py"
 
     # --- malloc configurations ---
-    if [ "$param" -le "$malloc_max" ]; then
-        measure "NachLang JIT (malloc)" "$expected" "${NACHLANG[@]}" "$nach"
+    #
+    # Only the configurations that still emit a real allocation per operation
+    # are bounded by malloc_max: -O0 and -O1. From -O2 upward the optimizer
+    # proves the NACHTYPEs never escape and removes them, so those run in
+    # constant memory at any workload size and are not gated.
+    reason="malloc-only never frees; viable up to $malloc_max, asked for $param"
+    if [ "$bytes_per_unit" -gt 0 ]; then
+        reason="$reason (~$(awk -v p="$param" -v b="$bytes_per_unit" \
+            'BEGIN {printf "%.1f", p * b / 1024 / 1024 / 1024}') GB)"
+    fi
 
-        if emit_ir "$nach" "$WORK_DIR/${label}.malloc.ll"; then
-            for level in 1 2 3; do
-                if opt "-O${level}" -S "$WORK_DIR/${label}.malloc.ll" \
-                       -o "$WORK_DIR/${label}.malloc.O${level}.ll" 2>/dev/null; then
-                    measure "opt -O${level} + lli (malloc)" "$expected" \
-                        lli "$WORK_DIR/${label}.malloc.O${level}.ll"
-                else
-                    skip "opt -O${level} + lli (malloc)" "opt failed"
-                fi
-            done
-        else
-            skip "opt -O* + lli (malloc)" "IR generation failed"
-        fi
+    allocating_fits=1
+    [ "$param" -gt "$malloc_max" ] && allocating_fits=0
+
+    # --opt-level 0 runs no IR passes, which is what the JIT did before it
+    # gained a pass manager. Kept as the baseline the optimizer is measured
+    # against.
+    if [ "$allocating_fits" = "1" ]; then
+        measure "NachLang JIT -O0 (malloc)" "$expected" \
+            "${NACHLANG[@]}" "$nach" --opt-level 0
     else
-        reason="malloc-only never frees; viable up to $malloc_max, asked for $param"
-        if [ "$bytes_per_unit" -gt 0 ]; then
-            reason="$reason (~$(awk -v p="$param" -v b="$bytes_per_unit" \
-                'BEGIN {printf "%.1f", p * b / 1024 / 1024 / 1024}') GB)"
-        fi
-        skip "NachLang JIT (malloc)" "$reason"
+        skip "NachLang JIT -O0 (malloc)" "$reason"
+    fi
+    measure "NachLang JIT (malloc)" "$expected" "${NACHLANG[@]}" "$nach"
+
+    if emit_ir "$nach" "$WORK_DIR/${label}.malloc.ll"; then
         for level in 1 2 3; do
-            skip "opt -O${level} + lli (malloc)" "$reason"
+            if [ "$level" = "1" ] && [ "$allocating_fits" = "0" ]; then
+                skip "opt -O1 + lli (malloc)" "$reason"
+                continue
+            fi
+            if opt "-O${level}" -S "$WORK_DIR/${label}.malloc.ll" \
+                   -o "$WORK_DIR/${label}.malloc.O${level}.ll" 2>/dev/null; then
+                measure "opt -O${level} + lli (malloc)" "$expected" \
+                    lli "$WORK_DIR/${label}.malloc.O${level}.ll"
+            else
+                skip "opt -O${level} + lli (malloc)" "opt failed"
+            fi
         done
+    else
+        skip "opt -O* + lli (malloc)" "IR generation failed"
     fi
 
     # --- GC configurations ---
     if [ -f "$LIBGC_PATH" ]; then
+        measure "NachLang JIT -O0 + GC" "$expected" \
+            "${NACHLANG[@]}" "$nach" --libgc-path "$LIBGC_PATH" --opt-level 0
         measure "NachLang JIT + GC" "$expected" \
             "${NACHLANG[@]}" "$nach" --libgc-path "$LIBGC_PATH"
 
-        if emit_ir "$nach" "$WORK_DIR/${label}.gc.ll" --libgc-path "$LIBGC_PATH"; then
+        if emit_ir "$nach" "$WORK_DIR/${label}.gc.ll" --libgc-path "$LIBGC_PATH" \
+                   ${GC_ATTR_FLAG[@]+"${GC_ATTR_FLAG[@]}"}; then
             if opt -O3 -S "$WORK_DIR/${label}.gc.ll" -o "$WORK_DIR/${label}.gc.O3.ll" 2>/dev/null; then
                 # GC IR references GC_malloc, so lli must load libgc.
                 measure "opt -O3 + lli + GC" "$expected" \
@@ -272,6 +303,7 @@ for entry in "${BENCHMARKS[@]}"; do
             skip "opt -O3 + lli + GC" "IR generation failed"
         fi
     else
+        skip "NachLang JIT -O0 + GC" "libgc not found"
         skip "NachLang JIT + GC" "libgc not found"
         skip "opt -O3 + lli + GC" "libgc not found"
     fi

@@ -29,6 +29,28 @@ CONDITIONAL_OPS_MAPPINGS = {
 
 USE_GC = False
 GC_VERIFIED_PATH = None
+GC_ALLOC_ATTRS = True
+
+# LLVM knows what `malloc` means through TargetLibraryInfo, so it can delete
+# allocations that never escape. `GC_malloc` is just an opaque external call
+# and gets no such treatment unless it is annotated as an allocator.
+#
+# These attributes require LLVM 15 or newer -- `allockind` does not parse under
+# LLVM 14 -- so GC_ALLOC_ATTRS exists to turn them off for older toolchains.
+# The JIT is unaffected either way: llvmlite bundles LLVM 15.
+GC_ALLOCATOR_ATTRIBUTES = (
+    'allockind("alloc,uninitialized")',
+    "allocsize(0)",
+    '"alloc-family"="gc"',
+    "nounwind",
+    "willreturn",
+)
+
+# llvmlite's attribute allowlist predates the LLVM 15 allocator attributes,
+# so register the ones we emit before trying to attach them.
+ir.FunctionAttributes._known = frozenset(  # pylint: disable=protected-access
+    ir.FunctionAttributes._known  # pylint: disable=protected-access
+) | set(GC_ALLOCATOR_ATTRIBUTES)
 
 # TODO: https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/appendix-a-how-to-implement-a-string-type-in-llvm/index.html
 # TODO: REFERENCE https://www.udemy.com/course/programming-language-with-llvm/learn/lecture/37292452?start=0#overview
@@ -195,7 +217,14 @@ def declare_malloc(builder):
     module = builder.module
     fnty = ir.FunctionType(INT8.as_pointer(), [INT64])
     malloc_name = "GC_malloc" if USE_GC else "malloc"
-    ir.Function(module, fnty, name=malloc_name)
+    function = ir.Function(module, fnty, name=malloc_name)
+
+    # See GC_ALLOCATOR_ATTRIBUTES: without these the optimizer cannot tell that
+    # GC_malloc is an allocator, and every NACHTYPE survives into the hot loop.
+    if USE_GC and GC_ALLOC_ATTRS:
+        function.return_value.add_attribute("noalias")
+        for attribute in GC_ALLOCATOR_ATTRIBUTES:
+            function.attributes.add(attribute)
 
 
 def _allocate_nachtype(builder):
@@ -1013,7 +1042,10 @@ def initialize():
 
     module = ir.Module(name="nachlag_core")
     module.triple = binding.get_default_triple()
-    func_type = ir.FunctionType(VOID, [], False)
+    # main returns an int so that tools which read the process exit status --
+    # lli among them -- see a real value rather than whatever happens to be in
+    # the return register.
+    func_type = ir.FunctionType(INT32, [], False)
     base_func = ir.Function(module, func_type, name="main")
     block = base_func.append_basic_block(name="entry")
     builder = ir.IRBuilder(block)

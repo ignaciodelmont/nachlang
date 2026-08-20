@@ -3,7 +3,7 @@ from functools import partial
 
 from nachlang import symbol_table, utils
 from nachlang.codegen import llvm
-from nachlang.codegen.core import NACHTYPE
+from nachlang.codegen.core import INT32, NACHTYPE
 
 
 @contextmanager
@@ -382,7 +382,7 @@ def generate_llvm_ir(ast):
 
     # print(builder.module)
 
-    builder.ret_void()
+    builder.ret(INT32(0))
 
     # TODO: IDELMONT maybe return the last generated value? as implicit return instead of void?
 
