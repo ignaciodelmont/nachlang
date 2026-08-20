@@ -1,0 +1,11 @@
+# Benchmark 2: Iterative loop with an accumulator
+# Measures: tight loop performance, arithmetic, variable mutation
+# 100 million iterations summing into an accumulator
+
+def sum 0
+def i 0
+(loop (i < 100000000) {
+    mut sum (sum + i)
+    mut i (i + 1)
+})
+print(sum)

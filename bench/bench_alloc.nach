@@ -1,0 +1,13 @@
+# Benchmark 3: Heavy heap value creation
+# Measures: allocator pressure, malloc vs GC
+# Every arithmetic operation allocates a fresh NACHTYPE on the heap,
+# so each iteration below costs several allocations that are never freed.
+# 10 million iterations
+
+def result 0
+def i 0
+(loop (i < 10000000) {
+    mut result ((i * 2) + 1)
+    mut i (i + 1)
+})
+print(result)
