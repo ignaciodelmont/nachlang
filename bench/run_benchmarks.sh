@@ -35,26 +35,31 @@ read -r -a NACHLANG <<< "$NACHLANG_CMD"
 # Benchmark definitions
 #
 # Each entry:
-#   label | source | literal to scale | full | quick | malloc_max | bytes/unit
+#   label | source | literal to scale | full | quick | bytes per unit
 #
-# malloc_max is the largest workload parameter the malloc-only
-# configurations can complete. Nothing is ever freed, so the resident set
-# grows linearly with the work done -- measured at 128 bytes per loop
-# iteration (four 32-byte NACHTYPEs), and ~850 MB for fib(32). Beyond
-# malloc_max those configurations are skipped and reported, never silently
-# dropped. bytes/unit of 0 means the footprint is not linear in the
-# parameter, so no projection is quoted.
+# bytes-per-unit drives the memory guard below. Nothing in the runtime is ever
+# freed, so at -O0 and -O1 the resident set grows with the work done: 128 bytes
+# per loop iteration, being four 32-byte NACHTYPEs. That figure is an upper
+# bound -- 100M iterations projects to 11.9 GB and actually peaks at 8.4 GB.
+# A value of 0 means the footprint is not linear in the parameter, so no
+# guard applies.
 #
-# bench_loop is listed twice on purpose: 50M is the largest size where the
-# malloc configurations still fit in RAM, and 100M is the original target
-# workload, which only the GC configurations can reach.
+# bench_loop is listed at two sizes so the cost of the workload can be seen
+# scaling, and to check that the numbers stay linear.
 # --------------------------------------------------------------
 BENCHMARKS=(
-    "bench_fib|bench_fib|35|35|25|35|0"
-    "bench_loop_50M|bench_loop|100000000|50000000|1000000|50000000|128"
-    "bench_loop_100M|bench_loop|100000000|100000000|2000000|20000000|128"
-    "bench_alloc|bench_alloc|10000000|10000000|1000000|10000000|0"
+    "bench_fib|bench_fib|35|35|25|0"
+    "bench_loop_50M|bench_loop|100000000|50000000|1000000|128"
+    "bench_loop_100M|bench_loop|100000000|100000000|2000000|128"
+    "bench_alloc|bench_alloc|10000000|10000000|1000000|0"
 )
+
+# Configurations that allocate per operation (-O0 and -O1) are skipped when
+# their projected footprint would exceed this share of physical RAM. Everything
+# from -O2 up elides the allocations and runs in constant memory, so it is
+# never guarded. Raise MEMORY_BUDGET to push the machine harder.
+MEMORY_BUDGET=${MEMORY_BUDGET:-0.6}
+PHYSICAL_RAM=$(sysctl -n hw.memsize 2>/dev/null || echo 0)
 
 PASS=0
 FAIL=0
@@ -122,8 +127,20 @@ measure() {
     local note=""
     [ $failures -gt 0 ] && note="  [${failures}/${RUNS} runs failed: ${first_error}]"
 
-    printf '  %-26s %8ss median   %8ss best%s\n' \
-        "$label" "$(median "${times[@]}")" "$(fastest "${times[@]}")" "$note"
+    local med best
+    med=$(median "${times[@]}")
+    best=$(fastest "${times[@]}")
+
+    # A median far above the best run means the machine was interfering rather
+    # than the code being slow -- memory pressure from the allocating
+    # configurations is the usual cause. Say so instead of quoting a number
+    # that describes the swap subsystem.
+    if awk -v m="$med" -v b="$best" 'BEGIN {exit !(b > 0 && m > 2 * b)}'; then
+        note="$note  [UNSTABLE: median is $(awk -v m="$med" -v b="$best" \
+            'BEGIN {printf "%.1f", m / b}')x the best run]"
+    fi
+
+    printf '  %-26s %8ss median   %8ss best%s\n' "$label" "$med" "$best" "$note"
     PASS=$((PASS + 1))
 }
 
@@ -208,7 +225,7 @@ echo ""
 # Benchmarks
 # --------------------------------------------------------------
 for entry in "${BENCHMARKS[@]}"; do
-    IFS='|' read -r label src literal full quick malloc_max bytes_per_unit <<< "$entry"
+    IFS='|' read -r label src literal full quick bytes_per_unit <<< "$entry"
 
     param="$full"
     [ "$QUICK" = "1" ] && param="$quick"
@@ -245,14 +262,19 @@ for entry in "${BENCHMARKS[@]}"; do
     # are bounded by malloc_max: -O0 and -O1. From -O2 upward the optimizer
     # proves the NACHTYPEs never escape and removes them, so those run in
     # constant memory at any workload size and are not gated.
-    reason="malloc-only never frees; viable up to $malloc_max, asked for $param"
-    if [ "$bytes_per_unit" -gt 0 ]; then
-        reason="$reason (~$(awk -v p="$param" -v b="$bytes_per_unit" \
-            'BEGIN {printf "%.1f", p * b / 1024 / 1024 / 1024}') GB)"
-    fi
-
     allocating_fits=1
-    [ "$param" -gt "$malloc_max" ] && allocating_fits=0
+    reason=""
+    if [ "$bytes_per_unit" -gt 0 ] && [ "$PHYSICAL_RAM" -gt 0 ]; then
+        read -r allocating_fits reason <<< "$(awk \
+            -v p="$param" -v b="$bytes_per_unit" -v ram="$PHYSICAL_RAM" -v budget="$MEMORY_BUDGET" '
+            BEGIN {
+                need = p * b
+                limit = ram * budget
+                gb = 1024 * 1024 * 1024
+                printf "%d projected %.1f GB exceeds the %.1f GB budget (%.0f%% of RAM)",
+                       (need <= limit), need / gb, limit / gb, budget * 100
+            }')"
+    fi
 
     # --opt-level 0 runs no IR passes, which is what the JIT did before it
     # gained a pass manager. Kept as the baseline the optimizer is measured
