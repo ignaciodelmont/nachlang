@@ -3,17 +3,29 @@ import rply
 lexer_generator = rply.LexerGenerator()
 
 
+def keyword(pattern):
+    """
+    Builds a keyword pattern that cannot match inside a longer identifier.
+
+    Rules are tried in order and the first match wins, so without the trailing
+    word boundary `print` would match the first five characters of `printer`
+    and leave `er` behind as a separate variable. Every reserved word needs
+    this, not just the short ones.
+    """
+    return rf"(?:{pattern})\b"
+
+
 tokens = [
     # Print
-    ("PRINT", r"print"),
+    ("PRINT", keyword(r"print")),
     # Conditional
-    ("IF", r"if"),
+    ("IF", keyword(r"if")),
     # Function
-    ("LOOP", r"loop"),
-    ("RETURN", r"return"),
+    ("LOOP", keyword(r"loop")),
+    ("RETURN", keyword(r"return")),
     # Booleans
-    ("BOOL", r"true|false"),
-    ("IS_TRUTHY", r"is_truthy"),
+    ("BOOL", keyword(r"true|false")),
+    ("IS_TRUTHY", keyword(r"is_truthy")),
     # Parenthesis
     ("OPEN_PAREN", r"\("),
     ("CLOSE_PAREN", r"\)"),
@@ -32,13 +44,13 @@ tokens = [
     ("LT", r"<"),
     ("GT", r">"),
     ("NEQ", r"!="),
-    ("AND", r"and"),
-    ("OR", r"or"),
+    ("AND", keyword(r"and")),
+    ("OR", keyword(r"or")),
     # Functions
-    ("DEFN", r"defn"),
+    ("DEFN", keyword(r"defn")),
     # Vars
-    ("DEF", r"def"),
-    ("MUT", r"mut"),
+    ("DEF", keyword(r"def")),
+    ("MUT", keyword(r"mut")),
     ("VAR", r"[a-zA-Z_][a-zA-Z0-9_]*"),
     ("ASSIGN", r"="),
     # Number
