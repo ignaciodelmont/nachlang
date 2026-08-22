@@ -1,6 +1,6 @@
 import pytest
-from rply.errors import ParsingError
 
+from nachlang.errors import NachlangSyntaxError
 from nachlang.parser import parse
 
 VALID_PROGRAMS = [
@@ -27,6 +27,9 @@ VALID_PROGRAMS = [
     ("comma separated args", "defn f(a b) { return a } f(1, 2)"),
     ("trailing comma", "defn f(a, b,) { return a }"),
     ("tab indented", "def\tx\t1"),
+    ("empty", ""),
+    ("comment only", "# nothing at all"),
+    ("blank lines only", "\n\n"),
 ]
 
 INVALID_PROGRAMS = [
@@ -49,7 +52,7 @@ def test_valid_program_parses(source):
     "source", [s for _, s in INVALID_PROGRAMS], ids=[n for n, _ in INVALID_PROGRAMS]
 )
 def test_invalid_program_is_rejected(source):
-    with pytest.raises(ParsingError):
+    with pytest.raises(NachlangSyntaxError):
         parse(source)
 
 
@@ -86,3 +89,36 @@ def test_nested_structure_is_preserved():
     tree = parse("defn f(a) { return a }")
     assert tree["value"][0]["name"] == "statement"
     assert tree["value"][0]["value"][0]["name"] == "define_function"
+
+
+def test_empty_program_yields_no_statements():
+    assert parse("")["value"] == []
+
+
+def test_comment_only_program_yields_no_statements():
+    assert parse("# nothing at all")["value"] == []
+
+
+def test_syntax_error_names_the_offending_token():
+    with pytest.raises(NachlangSyntaxError) as caught:
+        parse("def 1 1")
+    assert "unexpected NUMBER '1'" in str(caught.value)
+
+
+def test_syntax_error_reports_a_position():
+    with pytest.raises(NachlangSyntaxError) as caught:
+        parse("def 1 1")
+    assert caught.value.line == 1
+    assert caught.value.column == 5
+
+
+def test_unexpected_character_is_reported():
+    with pytest.raises(NachlangSyntaxError) as caught:
+        parse("def x $")
+    assert "unexpected character '$'" in str(caught.value)
+
+
+def test_truncated_program_reports_end_of_input():
+    with pytest.raises(NachlangSyntaxError) as caught:
+        parse("print(")
+    assert "end of input" in str(caught.value)
