@@ -169,10 +169,14 @@ def resolve_loop_statement(loop_statement, context):
 
 
 def resolve_print_expression(print_exp, context):
-    nach_val_to_resolve = print_exp[2]
-    nach_val = resolve_expression(nach_val_to_resolve["value"], context)
+    """
+    print takes any number of arguments and prints each on its own line.
+    Only the first used to be resolved, so the rest were parsed and then
+    silently dropped.
+    """
     builder = context["builder"]
-    llvm.nach_print(builder, nach_val)
+    for argument in print_exp[2]["value"]:
+        llvm.nach_print(builder, resolve_expression(argument["value"], context))
 
 
 def resolve_is_truthy_expression(is_truthy_exp, context):

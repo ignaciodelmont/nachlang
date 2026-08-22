@@ -108,6 +108,27 @@ def test_is_truthy(nach, value, expected):
     assert nach.output(f"print(is_truthy({value}))") == [expected]
 
 
+def test_print_takes_several_arguments(nach):
+    assert nach.output('print(1 2 "three" true)') == [
+        num(1),
+        num(2),
+        "three",
+        TRUE,
+    ]
+
+
+def test_print_arguments_may_be_comma_separated(nach):
+    assert nach.output("print(1, 2, 3)") == [num(1), num(2), num(3)]
+
+
+def test_print_with_no_arguments_prints_nothing(nach):
+    assert nach.output("print() print(1)") == [num(1)]
+
+
+def test_print_evaluates_each_argument(nach):
+    assert nach.output("def x 2 print(x + 1, x * 3)") == [num(3), num(6)]
+
+
 def test_leading_comment_is_ignored(nach):
     assert nach.output("# a comment\nprint(1)") == [num(1)]
 
