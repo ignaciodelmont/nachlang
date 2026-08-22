@@ -57,8 +57,6 @@ tokens = [
     ("NUMBER", r"\d+"),
     # String
     ("STRING", r'"(.*?)"'),
-    # COMMA
-    ("COMMA", r","),
 ]
 
 
@@ -68,7 +66,17 @@ def add_token(t):
 
 list(map(lambda t: lexer_generator.add(*t), tokens))
 
-ignores = [r" |\n", r"\#.*"]
+# Text that carries no meaning and never reaches the parser.
+#
+# Commas are deliberately in here rather than in the grammar: they separate
+# nothing, so `f(a, b)` and `f(a b)` are the same call and the choice is the
+# author's taste. Keeping them out of the grammar also avoids inventing a
+# rule for where a decorative character is and is not allowed.
+ignores = [
+    r"[ \t\r\n]+",
+    r",",
+    r"\#.*",
+]
 
 list(map(lambda i: lexer_generator.ignore(i), ignores))
 

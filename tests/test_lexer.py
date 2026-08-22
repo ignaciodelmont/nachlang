@@ -103,7 +103,6 @@ def test_defn_is_not_read_as_def():
         ("==", "EQ"),
         ("!=", "NEQ"),
         ("=", "ASSIGN"),
-        (",", "COMMA"),
     ],
 )
 def test_lexes_an_operator(source, expected):
@@ -129,6 +128,36 @@ def test_trailing_comment_is_dropped():
 
 def test_whitespace_and_newlines_are_dropped():
     assert names("def\n  x\n  1") == ["DEF", "VAR", "NUMBER"]
+
+
+def test_tabs_are_dropped():
+    assert names("def\tx\t1") == ["DEF", "VAR", "NUMBER"]
+
+
+def test_carriage_returns_are_dropped():
+    assert names("def x 1\r\nprint(x)") == [
+        "DEF",
+        "VAR",
+        "NUMBER",
+        "PRINT",
+        "OPEN_PAREN",
+        "VAR",
+        "CLOSE_PAREN",
+    ]
+
+
+# Commas separate nothing. They are skipped like whitespace so that writing
+# them stays a matter of taste rather than a grammar rule.
+def test_commas_are_dropped():
+    assert tokenize("a, b") == [("VAR", "a"), ("VAR", "b")]
+
+
+def test_commas_do_not_change_the_token_stream():
+    assert names("f(a, b)") == names("f(a b)")
+
+
+def test_trailing_comma_is_dropped():
+    assert names("f(a, b,)") == names("f(a b)")
 
 
 def test_lexes_a_function_definition():

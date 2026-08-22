@@ -131,6 +131,43 @@ def test_string_returning_function(nach):
     assert nach.output(source) == ["hello"]
 
 
+def test_parameters_may_be_comma_separated(nach):
+    source = """
+        defn plus(a, b) { return a + b }
+        print(plus(2 3))
+    """
+    assert nach.output(source) == [num(5)]
+
+
+def test_arguments_may_be_comma_separated(nach):
+    source = """
+        defn plus(a b) { return a + b }
+        print(plus(2, 3))
+    """
+    assert nach.output(source) == [num(5)]
+
+
+def test_commas_are_optional_on_both_sides(nach):
+    source = """
+        defn total(a, b, c) { return a + b + c }
+        print(total(1, 2, 3))
+        print(total(1 2 3))
+    """
+    assert nach.output(source) == [num(6), num(6)]
+
+
+def test_trailing_comma_is_allowed(nach):
+    source = """
+        defn plus(a, b,) { return a + b }
+        print(plus(2, 3,))
+    """
+    assert nach.output(source) == [num(5)]
+
+
+def test_tab_indented_source_compiles(nach):
+    assert nach.output("defn f(a) {\n\treturn a + 1\n}\nprint(f(1))") == [num(2)]
+
+
 @pytest.mark.parametrize("identifier", ["order", "printer", "define"])
 def test_name_may_start_with_a_keyword(nach, identifier):
     source = f"""

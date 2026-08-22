@@ -11,15 +11,6 @@ import pytest
 from tests.helpers import num
 
 
-@pytest.mark.xfail(strict=True, reason="COMMA is lexed but has no grammar rule")
-def test_arguments_may_be_comma_separated(nach):
-    source = """
-        defn plus(a, b) { return a + b }
-        print(plus(2, 3))
-    """
-    assert nach.output(source) == [num(5)]
-
-
 @pytest.mark.xfail(
     strict=True, reason="functions cannot reach variables in an outer scope"
 )

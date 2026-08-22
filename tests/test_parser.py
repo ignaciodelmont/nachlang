@@ -23,6 +23,10 @@ VALID_PROGRAMS = [
     ("nested call", "defn f(a) { return a } f(f(1))"),
     ("is_truthy", "is_truthy(1)"),
     ("leading comment", "# explain\nprint(1)"),
+    ("comma separated params", "defn f(a, b) { return a + b }"),
+    ("comma separated args", "defn f(a b) { return a } f(1, 2)"),
+    ("trailing comma", "defn f(a, b,) { return a }"),
+    ("tab indented", "def\tx\t1"),
 ]
 
 INVALID_PROGRAMS = [
@@ -31,7 +35,6 @@ INVALID_PROGRAMS = [
     ("unclosed block", "(if (1) {"),
     ("missing if parens", "if (1) { print(1) }"),
     ("dangling operator", "1 +"),
-    ("comma between arguments", "defn f(a, b) { return a }"),
 ]
 
 
@@ -62,6 +65,17 @@ def test_keyword_prefixed_name_works_as_a_variable(identifier):
 @pytest.mark.parametrize("identifier", ["order", "printer", "define"])
 def test_keyword_prefixed_name_works_as_a_function(identifier):
     assert parse(f"defn {identifier}(a) {{ return a }}")["name"] == "statement_list"
+
+
+@pytest.mark.parametrize(
+    "with_commas,without",
+    [
+        ("defn f(a, b) { return a + b }", "defn f(a b) { return a + b }"),
+        ("defn f(a b) { return a } f(1, 2)", "defn f(a b) { return a } f(1 2)"),
+    ],
+)
+def test_commas_are_decorative(with_commas, without):
+    assert parse(with_commas) == parse(without)
 
 
 def test_statement_list_holds_every_statement():
