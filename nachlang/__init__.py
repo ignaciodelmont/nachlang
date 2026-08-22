@@ -14,8 +14,8 @@ if not os.getenv("NACHLANG_PARSER_WARNINGS"):
 
 from nachlang import graph, runtime
 from nachlang.codegen import ast, core
-from nachlang.lexer import lexer
-from nachlang.parser import parser
+from nachlang.errors import NachlangError
+from nachlang.parser import parse
 
 app = typer.Typer()
 
@@ -40,8 +40,7 @@ def should_use_gc(libgc_path: Optional[str] = None):
 
 
 def generate_ast(program):
-    tokens = lexer.lex(program)
-    return parser.parse(tokens)
+    return parse(program)
 
 
 def _cmd_compile_and_run(
@@ -103,8 +102,12 @@ def cmd_compile_and_run(
             opt_level,
             gc_alloc_attrs,
         )
-    except Exception as e:
-        print(e)
+    except NachlangError as error:
+        # The program is at fault, so report it plainly and without a traceback.
+        print(error, file=sys.stderr)
+        sys.exit(1)
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        print(f"internal error: {error}", file=sys.stderr)
         sys.exit(1)
 
     # main now returns an int, so hand its value back to the shell.
