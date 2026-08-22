@@ -33,13 +33,43 @@ def test_parse_error_exits_nonzero(nach):
 def test_unknown_variable_is_reported(nach):
     result = nach.run("print(nope)")
     assert result.returncode != 0
-    assert "couldn't be found in scope" in result.stdout + result.stderr
+    assert "couldn't be found in scope" in result.stderr
 
 
 def test_redefining_a_variable_is_reported(nach):
     result = nach.run("def x 1 def x 2")
     assert result.returncode != 0
-    assert "already exists in scope" in result.stdout + result.stderr
+    assert "already exists in scope" in result.stderr
+
+
+def test_errors_go_to_stderr_not_stdout(nach):
+    result = nach.run("print(nope)")
+    assert result.stderr.strip()
+    assert not result.stdout.strip()
+
+
+def test_parse_error_names_the_token_and_position(nach):
+    result = nach.run("def 1 1")
+    assert "line 1, column 5" in result.stderr
+    assert "unexpected NUMBER '1'" in result.stderr
+
+
+def test_unexpected_character_is_reported(nach):
+    result = nach.run("def x $")
+    assert "unexpected character '$'" in result.stderr
+
+
+def test_author_errors_are_not_labelled_internal(nach):
+    result = nach.run("print(nope)")
+    assert "internal error" not in result.stderr
+
+
+def test_empty_program_succeeds(nach):
+    assert nach.output("") == []
+
+
+def test_comment_only_program_succeeds(nach):
+    assert nach.output("# nothing at all") == []
 
 
 @pytest.mark.parametrize("level", ["0", "1", "2", "3"])
@@ -64,3 +94,27 @@ def test_emitted_module_declares_plain_malloc_by_default(nach, tmp_path):
     text = next(tmp_path.glob("*.nach.ll")).read_text(encoding="utf-8")
     assert '@"malloc"' in text
     assert "GC_malloc" not in text
+
+
+def test_calling_an_undefined_function_is_reported(nach):
+    result = nach.run("print(nosuchfn(1))")
+    assert result.returncode != 0
+    assert "'nosuchfn' is not a defined function" in result.stderr
+
+
+def test_defining_a_function_twice_is_reported(nach):
+    result = nach.run("defn f(a) { return a } defn f(a) { return a }")
+    assert result.returncode != 0
+    assert "'f' is already defined" in result.stderr
+
+
+def test_calling_with_too_few_arguments_is_reported(nach):
+    result = nach.run("defn f(a b) { return a } print(f(1))")
+    assert result.returncode != 0
+    assert "takes 2 argument(s), got 1" in result.stderr
+
+
+def test_calling_with_too_many_arguments_is_reported(nach):
+    result = nach.run("defn f(a) { return a } print(f(1 2))")
+    assert result.returncode != 0
+    assert "takes 1 argument(s), got 2" in result.stderr
