@@ -135,3 +135,37 @@ def test_leading_comment_is_ignored(nach):
 
 def test_trailing_comment_is_ignored(nach):
     assert nach.output("print(1) # explain") == [num(1)]
+
+
+def test_string_may_contain_an_escaped_quote(nach):
+    assert nach.output(r'print("say \"hi\"")') == ['say "hi"']
+
+
+def test_string_may_contain_a_backslash(nach):
+    assert nach.output(r'print("C:\\path")') == [r"C:\path"]
+
+
+def test_string_supports_newline_and_tab_escapes(nach):
+    assert nach.output(r'print("a\nb") print("x\ty")') == ["a", "b", "x\ty"]
+
+
+def test_string_may_hold_non_ascii_text(nach):
+    assert nach.output('print("héllo wörld")') == ["héllo wörld"]
+
+
+def test_empty_string_prints_an_empty_line(nach):
+    assert nach.output('print("")') == [""]
+
+
+def test_two_strings_on_one_line_stay_separate(nach):
+    assert nach.output('print("a") print("b")') == ["a", "b"]
+
+
+def test_escaped_quotes_compare_equal(nach):
+    assert nach.output(r'print("\"" == "\"")') == [TRUE]
+
+
+def test_unknown_escape_is_rejected(nach):
+    result = nach.run(r'print("C:\path")')
+    assert result.returncode != 0
+    assert r"unknown escape '\p'" in result.stderr

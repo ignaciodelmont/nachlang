@@ -94,3 +94,27 @@ def test_emitted_module_declares_plain_malloc_by_default(nach, tmp_path):
     text = next(tmp_path.glob("*.nach.ll")).read_text(encoding="utf-8")
     assert '@"malloc"' in text
     assert "GC_malloc" not in text
+
+
+def test_calling_an_undefined_function_is_reported(nach):
+    result = nach.run("print(nosuchfn(1))")
+    assert result.returncode != 0
+    assert "'nosuchfn' is not a defined function" in result.stderr
+
+
+def test_defining_a_function_twice_is_reported(nach):
+    result = nach.run("defn f(a) { return a } defn f(a) { return a }")
+    assert result.returncode != 0
+    assert "'f' is already defined" in result.stderr
+
+
+def test_calling_with_too_few_arguments_is_reported(nach):
+    result = nach.run("defn f(a b) { return a } print(f(1))")
+    assert result.returncode != 0
+    assert "takes 2 argument(s), got 1" in result.stderr
+
+
+def test_calling_with_too_many_arguments_is_reported(nach):
+    result = nach.run("defn f(a) { return a } print(f(1 2))")
+    assert result.returncode != 0
+    assert "takes 1 argument(s), got 2" in result.stderr

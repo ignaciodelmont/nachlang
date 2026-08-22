@@ -175,3 +175,39 @@ def test_name_may_start_with_a_keyword(nach, identifier):
         print({identifier}(1))
     """
     assert nach.output(source) == [num(2)]
+
+
+# The module defines about thirty symbols of its own. A user function used to
+# claim the same LLVM name and die with DuplicatedNameError.
+@pytest.mark.parametrize(
+    "name",
+    [
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "main",
+        "printf",
+        "malloc",
+        "strlen",
+        "strcmp",
+        "load_number",
+        "allocate_number",
+        "nach_print",
+        "compare_strings",
+    ],
+)
+def test_name_may_match_a_runtime_symbol(nach, name):
+    source = f"""
+        defn {name}(a) {{ return a + 1 }}
+        print({name}(1))
+    """
+    assert nach.output(source) == [num(2)]
+
+
+def test_a_function_named_main_does_not_replace_the_entry_point(nach):
+    source = """
+        defn main(a) { return a * 2 }
+        print(main(4))
+    """
+    assert nach.output(source) == [num(8)]

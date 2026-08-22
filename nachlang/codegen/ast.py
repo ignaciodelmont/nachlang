@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from functools import partial
 
 from nachlang import symbol_table, utils
+from nachlang.errors import NachlangSyntaxError
 from nachlang.codegen import llvm
 from nachlang.codegen.core import INT32, NACHTYPE
 
@@ -307,12 +308,51 @@ def resolve_number(num, context):
     return llvm.allocate_number(builder, num.value)
 
 
+STRING_ESCAPES = {
+    '"': '"',
+    "\\": "\\",
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+}
+
+
+def unescape_string_literal(token):
+    """
+    Turn a STRING token into the text it stands for.
+
+    The token still carries its surrounding quotes. Stripping every quote
+    instead of just the delimiters used to make an escaped quote impossible
+    to write.
+    """
+    body = token.value[1:-1]
+    result = []
+    index = 0
+
+    while index < len(body):
+        character = body[index]
+        if character != "\\":
+            result.append(character)
+            index += 1
+            continue
+
+        escape = body[index + 1]
+        if escape not in STRING_ESCAPES:
+            source_pos = token.getsourcepos()
+            raise NachlangSyntaxError(
+                f"unknown escape '\\{escape}' in string",
+                line=source_pos.lineno if source_pos else None,
+                column=source_pos.colno if source_pos else None,
+            )
+        result.append(STRING_ESCAPES[escape])
+        index += 2
+
+    return "".join(result)
+
+
 def resolve_string(string, context):
     builder = context["builder"]
-    # Need to remove the extra "" at beginning and end of string
-    processed_value = string.value.replace('"', "")
-
-    return llvm.allocate_string(builder, processed_value)
+    return llvm.allocate_string(builder, unescape_string_literal(string))
 
 
 def resolve_bool(bool, context):
