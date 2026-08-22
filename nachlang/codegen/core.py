@@ -65,6 +65,14 @@ ir.FunctionAttributes._known = frozenset(  # pylint: disable=protected-access
 USER_SYMBOL_PREFIX = "nach."
 
 
+def user_global(name):
+    """
+    Namespace a top level variable, so a program may define one called
+    NACH_TRUE or printf_format without colliding with the runtime's globals.
+    """
+    return f"{USER_SYMBOL_PREFIX}var.{name}"
+
+
 def user_symbol(name):
     """
     Namespace a user-defined function so it cannot collide with the runtime.
@@ -787,6 +795,30 @@ def is_truthy(builder, nach_type_ptr):
 #
 # Functions
 #
+
+
+def define_global_variable(builder, name):
+    """
+    Define a module level slot holding a pointer to a NACHTYPE.
+
+    A top level `def` used to allocate on main's stack. An alloca belongs to
+    the frame that created it, so a function body referring to one produced
+    invalid IR -- "use of undefined value". A module global is reachable from
+    every function in the module, which is what a top level variable should
+    be. The slot has the same type as the alloca it replaces, so loads and
+    stores are unchanged.
+    """
+    module = builder.module
+    symbol = user_global(name)
+    # The symbol table would catch this too, but only after the global exists,
+    # and llvmlite's DuplicatedNameError is not a message anyone wants to read.
+    if symbol in module.globals:
+        raise NachlangNameError(f"'{name}' already exists in scope")
+
+    variable = ir.GlobalVariable(module, NACHTYPE.as_pointer(), symbol)
+    variable.linkage = "internal"
+    variable.initializer = ir.Constant(NACHTYPE.as_pointer(), None)
+    return variable
 
 
 def defn_function(builder, fn_name, fn_arg_number):

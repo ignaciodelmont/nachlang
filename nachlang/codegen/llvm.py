@@ -85,6 +85,13 @@ def is_truthy(builder, value):
     return core.is_truthy(builder, value)
 
 
+def define_global_variable(builder, name):
+    """
+    Defines a module level slot for a top level variable
+    """
+    return core.define_global_variable(builder, name)
+
+
 def defn_function(builder, fn_name, fn_arg_number):
     return core.defn_function(builder, fn_name, fn_arg_number)
 

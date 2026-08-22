@@ -6,10 +6,17 @@ from nachlang.errors import NachlangSyntaxError
 from nachlang.codegen import llvm
 from nachlang.codegen.core import INT32, NACHTYPE
 
+# The scope the program body runs in, named after the function it becomes.
+TOP_LEVEL_SCOPE = "main"
+
 
 @contextmanager
 def nested_scope_context(current_context, new_builder, scope_name):
-    yield create_context(new_builder, current_context["scope_path"] + [scope_name])
+    yield create_context(
+        new_builder,
+        current_context["scope_path"] + [scope_name],
+        current_context["names_used_in_functions"],
+    )
 
 
 #
@@ -245,15 +252,21 @@ def resolve_define_var(define_var, context):
     expression = define_var[2]
     resolved_expression = resolve_expression(expression["value"], context)
 
-    # Allocate stack space for the variable
     builder = context["builder"]
-    var_alloca = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
+
+    # A top level variable lives in a module global so that function bodies
+    # can reach it. Anything defined inside a function is local, and a stack
+    # slot is both cheaper and correctly scoped.
+    if is_top_level(context) and var_name in context["names_used_in_functions"]:
+        var_slot = llvm.define_global_variable(builder, var_name)
+    else:
+        var_slot = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
 
     # Store the initial value
-    builder.store(resolved_expression, var_alloca)
+    builder.store(resolved_expression, var_slot)
 
     # Store the memory location (not the value) in the symbol table
-    symbol_table.add_reference(context["scope_path"], var_name, var_alloca)
+    symbol_table.add_reference(context["scope_path"], var_name, var_slot)
     return resolved_expression
 
 
@@ -394,7 +407,49 @@ nodes = {
 #
 
 
-def create_context(builder, scope_path):
+def collect_names_used_in_functions(node):
+    """
+    Every name appearing anywhere inside a function body.
+
+    A top level variable only has to live in a module global if a function
+    might reach for it. Anything else stays a stack slot, which the optimizer
+    promotes into a register -- a global blocks that, and a top level loop
+    counter is exactly where the cost shows up.
+
+    The set is deliberately an over-approximation: it also picks up
+    parameters, locals and callee names. Making a variable global when it did
+    not need to be costs a little speed, never correctness.
+    """
+    names = set()
+
+    def collect_vars(subtree):
+        if isinstance(subtree, dict):
+            for child in subtree["value"]:
+                collect_vars(child)
+        elif getattr(subtree, "name", None) == "VAR":
+            names.add(subtree.value)
+
+    def walk(subtree):
+        if not isinstance(subtree, dict):
+            return
+        if subtree["name"] == "define_function":
+            collect_vars(subtree)
+            return
+        for child in subtree["value"]:
+            walk(child)
+
+    walk(node)
+    return names
+
+
+def is_top_level(context):
+    """
+    True when the context is the program body rather than a function body.
+    """
+    return context["scope_path"] == [TOP_LEVEL_SCOPE]
+
+
+def create_context(builder, scope_path, names_used_in_functions=frozenset()):
     """
     Creates a context which provides context information for code generation
 
@@ -402,13 +457,15 @@ def create_context(builder, scope_path):
 
     {
         "builder": <llvmlite Builder Object>,
-        "scope_path": <scope set for context>: [str]
+        "scope_path": <scope set for context>: [str],
+        "names_used_in_functions": <names any function body mentions>: set
     }
     """
     symbol_table.add_scope(scope_path)
     return {
         "builder": builder,
         "scope_path": scope_path,
+        "names_used_in_functions": names_used_in_functions,
     }
 
 
@@ -422,7 +479,10 @@ def generate_llvm_ir(ast):
         module: An llvmlite module object
     """
     builder, module = llvm.initialize()
-    r = resolve_ast_node(ast, create_context(builder, ["main"]))
+    context = create_context(
+        builder, [TOP_LEVEL_SCOPE], collect_names_used_in_functions(ast)
+    )
+    r = resolve_ast_node(ast, context)
 
     # print(builder.module)
 
