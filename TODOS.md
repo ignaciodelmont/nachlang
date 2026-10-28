@@ -2,6 +2,25 @@
 
 ## Language
 
+### Bugs found while writing the language reference
+
+- Booleans cannot be compared: `true == true` and `true != false` both yield
+  `false`. The comparison functions in `codegen/core.py` switch on the type
+  tag and handle only numbers (0) and strings (1); a boolean (2) falls to the
+  default block, which returns false.
+- Comparison operators have no entry in the parser's precedence table, so
+  they bind looser than `and`/`or` and cannot be chained: `1 < 2 and 3 < 4`
+  parses as `1 < (2 and (3 < 4))` and is false. Adding `("left", [EQ, NEQ,
+  LT, LTE, GT, GTE])` above `AND` in `parser.py` is the fix; it will change
+  the conflict count, so check `NACHLANG_PARSER_WARNINGS=1` before and after.
+- A `def` inside an `if` or `loop` body is registered in the enclosing scope,
+  so it is visible after the block, but its `alloca` sits in a basic block
+  that does not dominate the later use and LLVM rejects the module. Either
+  blocks need a scope of their own or every `alloca` needs to go in the
+  function's entry block.
+- A bare `return` crashes with IndexError, and `return` at the top level
+  crashes with an empty message. Both should be reported as syntax errors.
+
 - Do runtime type checks on operations. `validate_are_equal_type` computes the
   answer and then throws it away, so `1 == "a"` quietly returns false instead
   of complaining (`codegen/core.py`).
