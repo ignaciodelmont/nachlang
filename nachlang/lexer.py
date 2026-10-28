@@ -55,8 +55,9 @@ tokens = [
     ("ASSIGN", r"="),
     # Number
     ("NUMBER", r"\d+"),
-    # String
-    ("STRING", r'"(.*?)"'),
+    # String. A backslash escapes the character after it, so a string can
+    # hold a quote without ending early.
+    ("STRING", r'"(?:[^"\\]|\\.)*"'),
 ]
 
 

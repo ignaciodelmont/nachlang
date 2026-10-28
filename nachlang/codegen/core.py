@@ -1,5 +1,7 @@
 from llvmlite import binding, ir
 
+from nachlang.errors import NachlangNameError
+
 global_context = ir.global_context
 
 VOID = ir.VoidType()
@@ -54,6 +56,35 @@ ir.FunctionAttributes._known = frozenset(  # pylint: disable=protected-access
 
 # TODO: https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/appendix-a-how-to-implement-a-string-type-in-llvm/index.html
 # TODO: REFERENCE https://www.udemy.com/course/programming-language-with-llvm/learn/lecture/37292452?start=0#overview
+
+
+#
+# User symbols
+#
+
+USER_SYMBOL_PREFIX = "nach."
+
+
+def user_global(name):
+    """
+    Namespace a top level variable, so a program may define one called
+    NACH_TRUE or printf_format without colliding with the runtime's globals.
+    """
+    return f"{USER_SYMBOL_PREFIX}var.{name}"
+
+
+def user_symbol(name):
+    """
+    Namespace a user-defined function so it cannot collide with the runtime.
+
+    The module carries about thirty symbols of its own -- add, sub, mul, div,
+    main and is_truthy among them, plus the C functions it declares -- and
+    llvmlite raises DuplicatedNameError the moment a program defines a
+    function with one of those names. Prefixing user symbols keeps the two
+    namespaces apart, and means adding a runtime helper later can never break
+    a program that compiles today.
+    """
+    return f"{USER_SYMBOL_PREFIX}{name}"
 
 
 #
@@ -266,11 +297,11 @@ def allocate_string(builder, string):
     Allocates a python string in a NACHTYPE struct by creating a global
     constant and calling the runtime function to copy it to the heap.
     """
-    string_with_null = string + "\0"
-    value = ir.Constant(
-        ir.ArrayType(STRING, len(string_with_null)),
-        bytearray(string_with_null, "utf8"),
-    )
+    # Sized in bytes rather than characters: anything outside ASCII encodes
+    # to more than one byte, and a constant sized by character count silently
+    # produced a truncated string.
+    encoded = string.encode("utf8") + b"\0"
+    value = ir.Constant(ir.ArrayType(STRING, len(encoded)), bytearray(encoded))
     global_str = global_constant(builder, ".str", value)
 
     pointer_to_first_char = builder.gep(global_str, [INT32(0), INT32(0)], inbounds=True)
@@ -766,12 +797,40 @@ def is_truthy(builder, nach_type_ptr):
 #
 
 
+def define_global_variable(builder, name):
+    """
+    Define a module level slot holding a pointer to a NACHTYPE.
+
+    A top level `def` used to allocate on main's stack. An alloca belongs to
+    the frame that created it, so a function body referring to one produced
+    invalid IR -- "use of undefined value". A module global is reachable from
+    every function in the module, which is what a top level variable should
+    be. The slot has the same type as the alloca it replaces, so loads and
+    stores are unchanged.
+    """
+    module = builder.module
+    symbol = user_global(name)
+    # The symbol table would catch this too, but only after the global exists,
+    # and llvmlite's DuplicatedNameError is not a message anyone wants to read.
+    if symbol in module.globals:
+        raise NachlangNameError(f"'{name}' already exists in scope")
+
+    variable = ir.GlobalVariable(module, NACHTYPE.as_pointer(), symbol)
+    variable.linkage = "internal"
+    variable.initializer = ir.Constant(NACHTYPE.as_pointer(), None)
+    return variable
+
+
 def defn_function(builder, fn_name, fn_arg_number):
     module = builder.module
+    symbol = user_symbol(fn_name)
+    if symbol in module.globals:
+        raise NachlangNameError(f"'{fn_name}' is already defined")
+
     fn_type = ir.FunctionType(
         NACHTYPE.as_pointer(), [NACHTYPE.as_pointer() for i in range(fn_arg_number)]
     )
-    fn = ir.Function(module, fn_type, name=fn_name)
+    fn = ir.Function(module, fn_type, name=symbol)
     block = fn.append_basic_block(name="entry")
     fn_builder = ir.IRBuilder(block)
     return fn_builder, fn
@@ -788,7 +847,17 @@ def call_function(builder, fn_name, fn_args):
     """
     Resolves a call to a function
     """
-    fn = get_symbol_by_name(builder, fn_name)
+    try:
+        fn = get_symbol_by_name(builder, user_symbol(fn_name))
+    except KeyError as error:
+        raise NachlangNameError(f"'{fn_name}' is not a defined function") from error
+
+    expected = len(fn.args)
+    if len(fn_args) != expected:
+        raise NachlangNameError(
+            f"'{fn_name}' takes {expected} argument(s), got {len(fn_args)}"
+        )
+
     return builder.call(fn, fn_args)
 
 

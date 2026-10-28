@@ -1,5 +1,7 @@
 from functools import reduce
 
+from nachlang.errors import NachlangNameError
+
 symbol_table = {}
 
 """
@@ -61,9 +63,8 @@ def get_scope(scope_path):
 def add_reference(scope_path, name, reference):
     scope = get_scope(scope_path)
 
-    # TODO: Create specific Exception
     if scope["references"].get(name):
-        raise Exception(f"'{name}' already exists in scope")
+        raise NachlangNameError(f"'{name}' already exists in scope")
 
     scope["references"][name] = reference
     return scope
@@ -84,7 +85,7 @@ def update_reference(scope_path, name, reference):
             scope["references"][name] = reference
             return scope
 
-    raise Exception(f"'{name}' couldn't be found in scope for update")
+    raise NachlangNameError(f"'{name}' couldn't be found in scope for update")
 
 
 def add_return(scope_path, reference):
@@ -107,4 +108,4 @@ def get_reference(scope_path, name):
         if name in scope["references"]:
             return scope["references"][name]
 
-    raise Exception(f"'{name}' couldn't be found in scope")
+    raise NachlangNameError(f"'{name}' couldn't be found in scope")

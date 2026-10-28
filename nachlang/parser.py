@@ -1,5 +1,7 @@
 import rply
+from rply.errors import LexingError
 
+from nachlang.errors import NachlangSyntaxError
 from nachlang.lexer import lexer
 from nachlang.lexer import tokens as tk
 
@@ -174,8 +176,56 @@ def arguments(p):
 #     return
 
 
+def _syntax_error(message, source_pos):
+    """
+    Turn one of rply's source positions into a reportable error. The position
+    is optional because rply has none to give at end of input.
+    """
+    if source_pos is None:
+        return NachlangSyntaxError(message)
+    return NachlangSyntaxError(message, line=source_pos.lineno, column=source_pos.colno)
+
+
+@pg.error
+def error_handler(token):
+    """
+    rply's default is to raise ParsingError carrying only a source position,
+    which reaches the user as a bare tuple. Naming the offending token costs
+    nothing and is the difference between a usable message and a puzzle.
+    """
+    if token.gettokentype() == "$end":
+        raise NachlangSyntaxError("unexpected end of input")
+
+    raise _syntax_error(
+        f"unexpected {token.gettokentype()} {token.getstr()!r}",
+        token.getsourcepos(),
+    )
+
+
 parser = pg.build()
 
 
 def parse(code):
-    return parser.parse(lexer.lex(code))
+    """
+    Parse source text into an AST.
+
+    Tokens are materialised rather than streamed so that a lexing error
+    surfaces here, where it can be reported with a position, and so that a
+    program holding no statements can be recognised before it reaches the
+    grammar. Giving statement_list an empty production would do the same job
+    at the cost of two more reduce/reduce conflicts in a grammar that already
+    has plenty.
+    """
+    try:
+        tokens = list(lexer.lex(code))
+    except LexingError as error:
+        source_pos = error.getsourcepos()
+        character = ""
+        if source_pos is not None and source_pos.idx < len(code):
+            character = f" {code[source_pos.idx]!r}"
+        raise _syntax_error(f"unexpected character{character}", source_pos) from error
+
+    if not tokens:
+        return build_response("statement_list", [])
+
+    return parser.parse(iter(tokens))

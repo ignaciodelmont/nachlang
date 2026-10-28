@@ -2,13 +2,21 @@ from contextlib import contextmanager
 from functools import partial
 
 from nachlang import symbol_table, utils
+from nachlang.errors import NachlangSyntaxError
 from nachlang.codegen import llvm
 from nachlang.codegen.core import INT32, NACHTYPE
+
+# The scope the program body runs in, named after the function it becomes.
+TOP_LEVEL_SCOPE = "main"
 
 
 @contextmanager
 def nested_scope_context(current_context, new_builder, scope_name):
-    yield create_context(new_builder, current_context["scope_path"] + [scope_name])
+    yield create_context(
+        new_builder,
+        current_context["scope_path"] + [scope_name],
+        current_context["names_used_in_functions"],
+    )
 
 
 #
@@ -169,10 +177,14 @@ def resolve_loop_statement(loop_statement, context):
 
 
 def resolve_print_expression(print_exp, context):
-    nach_val_to_resolve = print_exp[2]
-    nach_val = resolve_expression(nach_val_to_resolve["value"], context)
+    """
+    print takes any number of arguments and prints each on its own line.
+    Only the first used to be resolved, so the rest were parsed and then
+    silently dropped.
+    """
     builder = context["builder"]
-    llvm.nach_print(builder, nach_val)
+    for argument in print_exp[2]["value"]:
+        llvm.nach_print(builder, resolve_expression(argument["value"], context))
 
 
 def resolve_is_truthy_expression(is_truthy_exp, context):
@@ -240,15 +252,21 @@ def resolve_define_var(define_var, context):
     expression = define_var[2]
     resolved_expression = resolve_expression(expression["value"], context)
 
-    # Allocate stack space for the variable
     builder = context["builder"]
-    var_alloca = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
+
+    # A top level variable lives in a module global so that function bodies
+    # can reach it. Anything defined inside a function is local, and a stack
+    # slot is both cheaper and correctly scoped.
+    if is_top_level(context) and var_name in context["names_used_in_functions"]:
+        var_slot = llvm.define_global_variable(builder, var_name)
+    else:
+        var_slot = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
 
     # Store the initial value
-    builder.store(resolved_expression, var_alloca)
+    builder.store(resolved_expression, var_slot)
 
     # Store the memory location (not the value) in the symbol table
-    symbol_table.add_reference(context["scope_path"], var_name, var_alloca)
+    symbol_table.add_reference(context["scope_path"], var_name, var_slot)
     return resolved_expression
 
 
@@ -303,12 +321,51 @@ def resolve_number(num, context):
     return llvm.allocate_number(builder, num.value)
 
 
+STRING_ESCAPES = {
+    '"': '"',
+    "\\": "\\",
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+}
+
+
+def unescape_string_literal(token):
+    """
+    Turn a STRING token into the text it stands for.
+
+    The token still carries its surrounding quotes. Stripping every quote
+    instead of just the delimiters used to make an escaped quote impossible
+    to write.
+    """
+    body = token.value[1:-1]
+    result = []
+    index = 0
+
+    while index < len(body):
+        character = body[index]
+        if character != "\\":
+            result.append(character)
+            index += 1
+            continue
+
+        escape = body[index + 1]
+        if escape not in STRING_ESCAPES:
+            source_pos = token.getsourcepos()
+            raise NachlangSyntaxError(
+                f"unknown escape '\\{escape}' in string",
+                line=source_pos.lineno if source_pos else None,
+                column=source_pos.colno if source_pos else None,
+            )
+        result.append(STRING_ESCAPES[escape])
+        index += 2
+
+    return "".join(result)
+
+
 def resolve_string(string, context):
     builder = context["builder"]
-    # Need to remove the extra "" at beginning and end of string
-    processed_value = string.value.replace('"', "")
-
-    return llvm.allocate_string(builder, processed_value)
+    return llvm.allocate_string(builder, unescape_string_literal(string))
 
 
 def resolve_bool(bool, context):
@@ -350,7 +407,49 @@ nodes = {
 #
 
 
-def create_context(builder, scope_path):
+def collect_names_used_in_functions(node):
+    """
+    Every name appearing anywhere inside a function body.
+
+    A top level variable only has to live in a module global if a function
+    might reach for it. Anything else stays a stack slot, which the optimizer
+    promotes into a register -- a global blocks that, and a top level loop
+    counter is exactly where the cost shows up.
+
+    The set is deliberately an over-approximation: it also picks up
+    parameters, locals and callee names. Making a variable global when it did
+    not need to be costs a little speed, never correctness.
+    """
+    names = set()
+
+    def collect_vars(subtree):
+        if isinstance(subtree, dict):
+            for child in subtree["value"]:
+                collect_vars(child)
+        elif getattr(subtree, "name", None) == "VAR":
+            names.add(subtree.value)
+
+    def walk(subtree):
+        if not isinstance(subtree, dict):
+            return
+        if subtree["name"] == "define_function":
+            collect_vars(subtree)
+            return
+        for child in subtree["value"]:
+            walk(child)
+
+    walk(node)
+    return names
+
+
+def is_top_level(context):
+    """
+    True when the context is the program body rather than a function body.
+    """
+    return context["scope_path"] == [TOP_LEVEL_SCOPE]
+
+
+def create_context(builder, scope_path, names_used_in_functions=frozenset()):
     """
     Creates a context which provides context information for code generation
 
@@ -358,13 +457,15 @@ def create_context(builder, scope_path):
 
     {
         "builder": <llvmlite Builder Object>,
-        "scope_path": <scope set for context>: [str]
+        "scope_path": <scope set for context>: [str],
+        "names_used_in_functions": <names any function body mentions>: set
     }
     """
     symbol_table.add_scope(scope_path)
     return {
         "builder": builder,
         "scope_path": scope_path,
+        "names_used_in_functions": names_used_in_functions,
     }
 
 
@@ -378,7 +479,10 @@ def generate_llvm_ir(ast):
         module: An llvmlite module object
     """
     builder, module = llvm.initialize()
-    r = resolve_ast_node(ast, create_context(builder, ["main"]))
+    context = create_context(
+        builder, [TOP_LEVEL_SCOPE], collect_names_used_in_functions(ast)
+    )
+    r = resolve_ast_node(ast, context)
 
     # print(builder.module)
 
