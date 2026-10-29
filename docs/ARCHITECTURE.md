@@ -192,11 +192,12 @@ function `fib` defined at the top level has scope `["main", "fib"]`. Name
 lookup walks from the current scope outward, so a function body finds its own
 locals first and then the top level.
 
-Blocks -- `if` and `loop` bodies -- do not get a scope of their own. A name
-defined inside one lands in the enclosing scope. That is why a `def` inside a
-block is *visible* after the block but crashes the compiler if read: the
-symbol table says the name exists, but the `alloca` that backs it sits in a
-basic block that does not dominate the use. This is a known bug.
+Blocks -- `if` and `loop` bodies -- get a scope of their own, named
+`block<n>` from a counter so two bodies in one function never collide. A name
+defined inside one is visible to the rest of that body and to blocks nested
+in it, shadows any outer name, and is gone after the closing brace. The
+context also records which function it is inside, if any; that is how a
+`return` at the top level is rejected even when it sits inside a block.
 
 ### Where variables live
 
@@ -204,9 +205,15 @@ A variable's storage is a slot holding a `%struct.nachtype*`. Reads are a
 `load` from the slot and `mut` is a `store` to it; the value itself is never
 copied.
 
-Locals and function parameters are `alloca`s in the function's entry block.
-LLVM's `mem2reg` promotes those straight into SSA registers, which is the
-cheapest storage there is.
+Locals and function parameters are `alloca`s in the function's entry block,
+wherever in the body the `def` appears. That placement matters twice over.
+An `alloca` executes each time control reaches it, so one emitted at the
+point of a `def` inside a loop body grew the stack on every iteration, and a
+two-million-iteration loop with a `def` in it segfaulted at `-O0` (`-O3` hid
+it by deleting the alloca). And `mem2reg` promotes only entry-block allocas
+into SSA registers, which is the cheapest storage there is. The slot is
+reserved once per call; the `store` of the initial value stays where the
+`def` is, so a loop body re-initialises its locals every iteration.
 
 Top-level variables have a complication: an `alloca` belongs to the frame of
 the function that created it, so a function body cannot reach one created in
@@ -294,7 +301,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 316 tests, split by language feature, and run in about 21
+`tests/` holds 323 tests, split by language feature, and run in about 22
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,

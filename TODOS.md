@@ -2,14 +2,6 @@
 
 ## Language
 
-### Bugs found while writing the language reference
-
-- A `def` inside an `if` or `loop` body is registered in the enclosing scope,
-  so it is visible after the block, but its `alloca` sits in a basic block
-  that does not dominate the later use and LLVM rejects the module. Either
-  blocks need a scope of their own or every `alloca` needs to go in the
-  function's entry block.
-
 - Do runtime type checks on arithmetic. Comparison now checks kinds, but
   `add`, `sub`, `mul` and `div` read the number field of whatever they are
   given, so `"a" + 1` quietly yields `nan` instead of complaining
