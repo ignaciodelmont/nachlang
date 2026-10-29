@@ -292,7 +292,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 271 tests, split by language feature, and run in about 18
+`tests/` holds 290 tests, split by language feature, and run in about 19
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,
