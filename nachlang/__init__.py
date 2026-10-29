@@ -17,7 +17,16 @@ from nachlang.codegen import ast, core
 from nachlang.errors import NachlangError
 from nachlang.parser import parse
 
+# Kept in step with pyproject.toml by release-please; tests check they agree.
+__version__ = "0.1.0"
+
 app = typer.Typer()
+
+
+def _show_version(value: bool):
+    if value:
+        print(f"nachlang {__version__}")
+        raise typer.Exit()
 
 
 def verify_llvm():
@@ -82,7 +91,7 @@ def _cmd_compile_and_run(
 
 
 @app.command()
-def cmd_compile_and_run(
+def cmd_compile_and_run(  # pylint: disable=too-many-arguments
     filename: str,
     output_ll: bool = False,
     graph_ast: bool = False,
@@ -90,6 +99,13 @@ def cmd_compile_and_run(
     libgc_path: Optional[str] = None,
     opt_level: int = runtime.DEFAULT_OPT_LEVEL,
     gc_alloc_attrs: bool = True,
+    version: bool = typer.Option(  # pylint: disable=unused-argument
+        False,
+        "--version",
+        callback=_show_version,
+        is_eager=True,
+        help="Print the version and exit.",
+    ),
 ):
     try:
         verify_llvm()

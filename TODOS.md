@@ -45,8 +45,10 @@
 - `fib` still allocates five NACHTYPEs per call: LLVM cannot prove they do not
   escape across a recursive edge. Unboxing numbers, or doing the escape
   analysis in the compiler, is the largest remaining performance win.
-- No CI. `pytest` plus `QUICK=1 ./bench/run_benchmarks.sh` would cover it; the
-  benchmark script already exits non-zero on failure.
+- CI checks pull request titles and cuts releases, but does not run the
+  tests. `pytest` plus `QUICK=1 ./bench/run_benchmarks.sh` would cover it; the
+  benchmark script already exits non-zero on failure. The runner needs `lli`
+  on `PATH` (the `llvm` apt package) and, for the benchmark, `opt`.
 - `codegen/ast.py` imports `load_bool` inside a function to dodge a circular
   import, and there are five import cycles between `nachlang` and
   `nachlang.codegen`.

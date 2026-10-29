@@ -1,0 +1,25 @@
+# On every merge to main, release-please reads the conventional commits since
+# the last release and opens (or updates) a release pull request that bumps
+# the version in pyproject.toml and writes CHANGELOG.md. Merging that pull
+# request creates the git tag and the GitHub release.
+#
+# Versioning policy lives in release-please-config.json; the current version
+# lives in .release-please-manifest.json.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

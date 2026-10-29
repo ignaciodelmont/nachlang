@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "bootstrap-sha": "8f63aacabfdee6e3fcb49c76c157a55d245ec083",
+  "bump-minor-pre-major": true,
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "package-name": "nachlang",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

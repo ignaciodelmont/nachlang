@@ -66,6 +66,7 @@ poetry run nachlang program.nach
 | `--compile-only` | stop after compiling; do not run |
 | `--graph-ast` | render the AST with graphviz |
 | `--no-gc-alloc-attrs` | omit the LLVM 15 allocator attributes from `GC_malloc`, for older external tools |
+| `--version` | print the version and exit |
 
 Errors go to standard error and exit with status 1. A program that completes
 exits with the value `main` returned, which is 0.
@@ -76,7 +77,7 @@ at startup; they are hidden by default.
 ## Development
 
 ```sh
-poetry run pytest                   # 290 tests, ~19s
+poetry run pytest                   # 291 tests, ~19s
 poetry run black nachlang/ tests/   # formatting
 poetry run pylint nachlang/
 QUICK=1 ./bench/run_benchmarks.sh   # benchmark smoke test
@@ -85,6 +86,23 @@ QUICK=1 ./bench/run_benchmarks.sh   # benchmark smoke test
 
 The execution tests run each program in a subprocess, so a crash in generated
 code fails one test rather than the runner.
+
+## Versioning and releases
+
+Semantic versioning, held at 0.x while the language is still changing:
+`fix:` bumps the patch, `feat:` bumps the minor, and a breaking change
+(`feat!:` or a `BREAKING CHANGE:` footer) also bumps the minor rather than
+the major. That last rule is `bump-minor-pre-major` in
+`release-please-config.json`; remove it to allow 1.0.
+
+Pull request titles must follow [Conventional
+Commits](https://www.conventionalcommits.org/), and CI checks them. Pull
+requests are squash-merged, so the title is the commit that lands on `main`.
+On each merge, release-please opens or updates a release pull request that
+bumps the version in `pyproject.toml` and `nachlang/__init__.py` and writes
+`CHANGELOG.md`; merging that pull request creates the tag and the GitHub
+release. `nachlang --version` reports the running version, and a test checks
+it against `pyproject.toml`.
 
 ## History
 

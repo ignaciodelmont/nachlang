@@ -118,3 +118,20 @@ def test_calling_with_too_many_arguments_is_reported(nach):
     result = nach.run("defn f(a) { return a } print(f(1 2))")
     assert result.returncode != 0
     assert "takes 1 argument(s), got 2" in result.stderr
+
+
+def test_version_flag_matches_pyproject():
+    import re
+    import subprocess
+    from pathlib import Path
+
+    from tests.conftest import NACHLANG
+
+    pyproject = (Path(__file__).parent.parent / "pyproject.toml").read_text()
+    declared = re.search(r'^version = "([^"]+)"', pyproject, re.M).group(1)
+
+    result = subprocess.run(
+        [str(NACHLANG), "--version"], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"nachlang {declared}"
