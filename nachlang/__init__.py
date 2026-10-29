@@ -18,7 +18,7 @@ from nachlang.errors import NachlangError
 from nachlang.parser import parse
 
 # Kept in step with pyproject.toml by release-please; tests check they agree.
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 app = typer.Typer()
 
