@@ -292,7 +292,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 290 tests, split by language feature, and run in about 19
+`tests/` holds 291 tests, split by language feature, and run in about 19
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,
@@ -310,7 +310,7 @@ answer as a fast one. `QUICK=1` runs reduced workloads as a smoke test.
 
 ```
 nachlang/
-  __init__.py       CLI entry point (typer); flags; error reporting
+  __init__.py       CLI entry point (typer); flags; error reporting; __version__
   lexer.py          token definitions
   parser.py         grammar, AST construction, syntax errors
   errors.py         NachlangError and its subclasses
@@ -329,6 +329,14 @@ docs/
   ARCHITECTURE.md   this document
   NOTES.md          llc / llvm-as recipes for the AOT path
 TODOS.md            known bugs, missing features, rough edges
+.github/workflows/
+  pr-title.yml      conventional-commit check on pull request titles
+  release.yml       release-please: release PR, tag and GitHub release
+release-please-config.json
+                    versioning policy (0.x: breaking changes bump the minor)
+.release-please-manifest.json
+                    the current version, as release-please tracks it
+CHANGELOG.md        written by release-please from the first release on
 ```
 
 `nachlang/nach_types.py`, `types.py` and `debugger.py` are not part of the
