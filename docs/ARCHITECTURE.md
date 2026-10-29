@@ -148,7 +148,7 @@ under optimisation; see Performance below.
 
 Every module begins with the same prelude, emitted by `core.initialize()`
 before any user code. It declares five C functions -- `printf`, `malloc` (or
-`GC_malloc`), `strcmp`, `strcpy`, `strlen` -- and defines twenty-five
+`GC_malloc`), `strcmp`, `strcpy`, `strlen` -- and defines twenty-four
 functions and seven constants of its own. Grouped by purpose:
 
 | group | symbols |
@@ -156,7 +156,7 @@ functions and seven constants of its own. Grouped by purpose:
 | allocation | `allocate_nachtype`, `allocate_number`, `allocate_string`, `allocate_bool` |
 | field access | `load_number`, `load_number_as_int`, `load_string`, `load_bool` |
 | arithmetic | `add`, `sub`, `mul`, `div` |
-| comparison | `nach_eq`, `nach_neq`, `nach_lt`, `nach_lte`, `nach_gt`, `nach_gte`, `compare_strings`, `validate_are_equal_type` |
+| comparison | `nach_eq`, `nach_neq`, `nach_lt`, `nach_lte`, `nach_gt`, `nach_gte`, `compare_strings` |
 | logic | `nach_and`, `nach_or`, `is_truthy` |
 | output | `nach_print` and its three format strings |
 | constants | `NACH_TRUE`, `NACH_FALSE`, `NACH_EMPTY_STRING` |
@@ -173,7 +173,7 @@ of 462.
 
 User-defined functions are emitted as `nach.<name>` and top-level variables
 as `nach.var.<name>`. The prefix keeps user names out of the module's own
-namespace, which already holds the thirty symbols above. Without it a
+namespace, which already holds the twenty-nine symbols above. Without it a
 function called `add`, `sub`, `main` or `printf` collided with the prelude and
 llvmlite refused to build the module.
 
@@ -292,7 +292,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 271 tests, split by language feature, and run in about 18
+`tests/` holds 290 tests, split by language feature, and run in about 19
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,

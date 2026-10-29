@@ -76,7 +76,7 @@ at startup; they are hidden by default.
 ## Development
 
 ```sh
-poetry run pytest                   # 271 tests, ~18s
+poetry run pytest                   # 290 tests, ~19s
 poetry run black nachlang/ tests/   # formatting
 poetry run pylint nachlang/
 QUICK=1 ./bench/run_benchmarks.sh   # benchmark smoke test

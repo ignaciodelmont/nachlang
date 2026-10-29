@@ -186,30 +186,31 @@ checks are on the to-do list.
 
 ### Comparison
 
-`==`, `!=`, `<`, `<=`, `>` and `>=` compare two values of the same kind and
-return a boolean. Numbers compare numerically. Strings compare by `strcmp`,
-so `"a" < "b"` is true. Two values of different kinds are never equal.
+`==`, `!=`, `<`, `<=`, `>` and `>=` compare two values and return a boolean.
+Numbers compare numerically. Strings compare by `strcmp`, so `"a" < "b"` is
+true. Booleans compare as the integers 0 and 1, so `false < true`. Two values
+of different kinds are never equal: `==` between them is false, `!=` is true,
+and the ordering operators are false.
 
 ```nachlang
 print(1 < 2)
 print("a" == "a")
 print("a" < "b")
+print(true == true)
 print(1 == "1")
+print(1 != "1")
 ```
 ```output
 bool(1)
 bool(1)
 bool(1)
+bool(1)
 bool(0)
+bool(1)
 ```
 
-Two things to know about comparison, both of which the compiler currently
-gets wrong and both of which are on the to-do list:
-
-**Booleans cannot be compared.** `true == true` evaluates to `false`. The
-comparison code dispatches on the kind of its operands and only handles
-numbers and strings; anything else falls through to "false". Test booleans
-with truthiness instead of equality.
+One thing to know about comparison, which the compiler currently gets wrong
+and which is on the to-do list:
 
 **Comparison operators have no declared precedence**, which makes them bind
 *looser* than everything, including `and` and `or`. So
@@ -512,19 +513,18 @@ The compiler has no runtime type checking, so operations on values of the
 wrong kind produce garbage rather than errors. Apart from that, the gaps in
 the language as implemented are:
 
-- Booleans cannot be compared with `==` or `!=`; both always yield `false`.
 - Comparison operators bind looser than `and` and `or`, and cannot be
   chained. Parenthesise them.
 - A `def` inside a block cannot be read after the block.
 - A bare `return`, or a `return` at the top level, crashes the compiler.
 - No negative or decimal literals, no `not`, no `break`, no `else if`.
-- No strings operations beyond printing and comparison: no concatenation,
+- No string operations beyond printing and comparison: no concatenation,
   length or indexing.
 - No closures and no lambdas.
 - Nothing is ever freed. A long-running program grows without bound unless
   compiled with `--libgc-path` to use the Boehm collector.
 
-The first four are bugs; the rest are features not yet built. All are
+The first three are bugs; the rest are features not yet built. All are
 tracked in `TODOS.md`.
 
 ## Grammar

@@ -521,14 +521,19 @@ def define_comparing_fns(builder):
         entry = function.append_basic_block("entry")
         fn_builder = ir.IRBuilder(entry)
         lhs_ptr, rhs_ptr = function.args
-        fn_builder.call(
-            get_symbol_by_name(fn_builder, "validate_are_equal_type"),
-            [lhs_ptr, rhs_ptr],
-        )
 
         true = allocate_bool(fn_builder, "true")
         false = allocate_bool(fn_builder, "false")
-        ptr_type = load_type(fn_builder, lhs_ptr)
+        lhs_type = load_type(fn_builder, lhs_ptr)
+        rhs_type = load_type(fn_builder, rhs_ptr)
+
+        # Values of different kinds are never equal, so `!=` is the only
+        # comparison between them that holds. This used to be decided by
+        # dispatching on the left operand's tag alone and reading whatever the
+        # right operand had in that field, which made `1 != "1"` false.
+        mismatch_block = fn_builder.append_basic_block("mismatch")
+        fn_builder.position_at_end(mismatch_block)
+        fn_builder.ret(true if operator == "!=" else false)
 
         # By default return false
         default_block = fn_builder.append_basic_block("default")
@@ -549,11 +554,33 @@ def define_comparing_fns(builder):
         fn_builder.position_at_end(is_comp_string_block)
         fn_builder.ret(compare_strings(fn_builder, lhs_ptr, rhs_ptr, operator))
 
-        # Switch Handler
+        # Boolean comparison block. Booleans compare as the integers 0 and 1,
+        # so false < true. Before this block existed they fell through to the
+        # default and every comparison of two booleans, `true == true`
+        # included, was false.
+        is_comp_bool_block = fn_builder.append_basic_block("is_comp_bool")
+        fn_builder.position_at_end(is_comp_bool_block)
+        lhs_bool = load_bool(fn_builder, lhs_ptr)
+        rhs_bool = load_bool(fn_builder, rhs_ptr)
+        with fn_builder.if_then(fn_builder.icmp_unsigned(operator, lhs_bool, rhs_bool)):
+            fn_builder.ret(true)
+        fn_builder.ret(false)
+
+        # Entry: same kind on both sides, or not
         fn_builder.position_at_end(entry)
-        switch_handler = fn_builder.switch(ptr_type, default_block)
+        dispatch_block = fn_builder.append_basic_block("dispatch")
+        fn_builder.cbranch(
+            fn_builder.icmp_signed("==", lhs_type, rhs_type),
+            dispatch_block,
+            mismatch_block,
+        )
+
+        # Switch Handler
+        fn_builder.position_at_end(dispatch_block)
+        switch_handler = fn_builder.switch(lhs_type, default_block)
         switch_handler.add_case(INT8(0), is_comp_number_block)
         switch_handler.add_case(INT8(1), is_comp_string_block)
+        switch_handler.add_case(INT8(2), is_comp_bool_block)
 
     define_comp_fn("==", "eq")
     define_comp_fn("!=", "neq")
@@ -561,24 +588,6 @@ def define_comparing_fns(builder):
     define_comp_fn("<=", "lte")
     define_comp_fn(">", "gt")
     define_comp_fn(">=", "gte")
-
-
-def define_validate_are_equal_type(builder):
-    # TODO: IDELMONT actually raise an exception on this scenario!
-    module = builder.module
-    function_type = ir.FunctionType(
-        NACHTYPE.as_pointer(), [NACHTYPE.as_pointer(), NACHTYPE.as_pointer()]
-    )
-    function = ir.Function(module, function_type, name="validate_are_equal_type")
-    fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
-    lhs_ptr, rhs_ptr = function.args
-    lhs_type = load_type(fn_builder, lhs_ptr)
-    rhs_type = load_type(fn_builder, rhs_ptr)
-
-    with fn_builder.if_then(fn_builder.icmp_signed("!=", lhs_type, rhs_type)):
-        fn_builder.ret(allocate_bool(fn_builder, "false"))
-
-    fn_builder.ret(allocate_bool(fn_builder, "true"))
 
 
 def add(builder, nach_type_ptr1, nach_type_ptr2):
@@ -1141,7 +1150,6 @@ def initialize():
             define_nach_empty_string,
             define_compare_strings,
             define_is_truthy,
-            define_validate_are_equal_type,
             define_comparing_fns,
             define_add,
             define_sub,
