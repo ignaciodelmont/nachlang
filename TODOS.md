@@ -4,10 +4,6 @@
 
 ### Bugs found while writing the language reference
 
-- Booleans cannot be compared: `true == true` and `true != false` both yield
-  `false`. The comparison functions in `codegen/core.py` switch on the type
-  tag and handle only numbers (0) and strings (1); a boolean (2) falls to the
-  default block, which returns false.
 - Comparison operators have no entry in the parser's precedence table, so
   they bind looser than `and`/`or` and cannot be chained: `1 < 2 and 3 < 4`
   parses as `1 < (2 and (3 < 4))` and is false. Adding `("left", [EQ, NEQ,
@@ -21,9 +17,10 @@
 - A bare `return` crashes with IndexError, and `return` at the top level
   crashes with an empty message. Both should be reported as syntax errors.
 
-- Do runtime type checks on operations. `validate_are_equal_type` computes the
-  answer and then throws it away, so `1 == "a"` quietly returns false instead
-  of complaining (`codegen/core.py`).
+- Do runtime type checks on arithmetic. Comparison now checks kinds, but
+  `add`, `sub`, `mul` and `div` read the number field of whatever they are
+  given, so `"a" + 1` quietly yields `nan` instead of complaining
+  (`codegen/core.py`).
 - String operations: concatenation, length, indexing. Escapes and printing are
   done; there is still no way to combine two strings.
 - Add Lambdas.
