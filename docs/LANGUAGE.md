@@ -423,7 +423,8 @@ it does not close over anything.
 
 ### Scope
 
-There are two kinds of scope: the top level, and each function body.
+There are three kinds of scope: the top level, each function body, and each
+`if` or `loop` body.
 
 A function can read and mutate variables defined at the top level. A local
 defined with the same name shadows the top-level one inside that function
@@ -462,21 +463,27 @@ print(x)
 Functions reach top-level variables but **not** the locals of an enclosing
 function: there are no closures.
 
-**Blocks are not scopes**, and this is a sharp edge. A `def` inside an `if`
-or `loop` body is visible after the block as far as the compiler's name
-resolution is concerned, but the storage it created belongs to the block, so
-reading it after the block crashes the compiler with an LLVM error
-("Instruction does not dominate all uses"). A variable that must be read
-after a block should be defined before it and assigned with `mut` inside.
-Using the variable only inside the block that defined it is fine.
+**Blocks are scopes.** A `def` inside an `if` or `loop` body exists only
+within that body, including any blocks nested in it, and is gone after the
+closing brace; reading it there is reported as an unknown name. A block-local
+may shadow an outer variable of the same name. To carry a value out of a
+block, define the variable before the block and assign it with `mut` inside.
 
 ```nachlang
 def result 0
-(if (true) { mut result 3 })
+def x 1
+(if (true) {
+    mut result 3
+    def x 2
+    print(x)
+})
 print(result)
+print(x)
 ```
 ```output
+2.000000
 3.000000
+1.000000
 ```
 
 ## Errors
@@ -507,7 +514,6 @@ The compiler has no runtime type checking, so operations on values of the
 wrong kind produce garbage rather than errors. Apart from that, the gaps in
 the language as implemented are:
 
-- A `def` inside a block cannot be read after the block.
 - No negative or decimal literals, no `not`, no `break`, no `else if`.
 - No string operations beyond printing and comparison: no concatenation,
   length or indexing.
@@ -515,8 +521,8 @@ the language as implemented are:
 - Nothing is ever freed. A long-running program grows without bound unless
   compiled with `--libgc-path` to use the Boehm collector.
 
-The first is a bug; the rest are features not yet built. All are tracked
-in `TODOS.md`.
+None of these is a bug; they are features not yet built, and are tracked in
+`TODOS.md`.
 
 ## Grammar
 

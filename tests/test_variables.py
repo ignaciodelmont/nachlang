@@ -108,3 +108,61 @@ def test_two_functions_share_one_top_level_variable(nach):
 
 def test_a_top_level_name_may_match_a_runtime_global(nach):
     assert nach.output("def printf_format 7 print(printf_format)") == [num(7)]
+
+
+# Blocks are scopes. A def inside an if or loop body used to be visible after
+# the block but crash the compiler when read, because its storage sat in a
+# basic block that did not dominate the use.
+def test_a_block_local_is_not_visible_after_the_block(nach):
+    result = nach.run("(if (true) { def z 3 }) print(z)")
+    assert result.returncode != 0
+    assert "'z' couldn't be found in scope" in result.stderr
+    assert "internal error" not in result.stderr
+
+
+def test_a_block_local_from_an_untaken_branch_is_not_visible_either(nach):
+    result = nach.run("(if (false) { def z 3 }) print(z)")
+    assert result.returncode != 0
+    assert "'z' couldn't be found in scope" in result.stderr
+
+
+def test_a_block_local_may_shadow_an_outer_variable(nach):
+    source = "def x 1 (if (true) { def x 2 print(x) }) print(x)"
+    assert nach.output(source) == [num(2), num(1)]
+
+
+def test_a_block_local_is_visible_inside_nested_blocks(nach):
+    source = """
+        (if (true) {
+            def inner 7
+            (if (true) { print(inner) })
+        })
+    """
+    assert nach.output(source) == [num(7)]
+
+
+def test_a_block_local_inside_a_function_body(nach):
+    source = """
+        defn f(n) {
+            (if (n) {
+                def doubled (n * 2)
+                return doubled
+            })
+            return 0
+        }
+        print(f(4))
+        print(f(0))
+    """
+    assert nach.output(source) == [num(8), num(0)]
+
+
+def test_each_loop_iteration_reinitialises_a_block_local(nach):
+    source = """
+        def i 0
+        (loop (i < 3) {
+            def t (i * 10)
+            print(t)
+            mut i (i + 1)
+        })
+    """
+    assert nach.output(source) == [num(0), num(10), num(20)]

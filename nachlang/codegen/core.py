@@ -830,6 +830,29 @@ def define_global_variable(builder, name):
     return variable
 
 
+def allocate_local_slot(builder, name):
+    """
+    Reserve a stack slot for a local in the function's entry block.
+
+    An alloca executes every time control reaches it, so one emitted at the
+    point of a `def` inside a loop body grew the stack on every iteration; a
+    two-million-iteration loop with a `def` in it segfaulted at -O0. An
+    alloca in the entry block runs once per call, dominates every use in the
+    function, and is the only kind mem2reg promotes into a register.
+    """
+    # Reposition the caller's own builder rather than using a second one. A
+    # builder keeps its insertion point as an index into the block's
+    # instruction list, so a second builder inserting at the front of the
+    # entry block leaves the first one's index stale by one and its next
+    # instruction lands before the value it uses. position_at_end recomputes
+    # the index.
+    current_block = builder.block
+    builder.position_at_start(builder.function.entry_basic_block)
+    slot = builder.alloca(NACHTYPE.as_pointer(), name=name)
+    builder.position_at_end(current_block)
+    return slot
+
+
 def defn_function(builder, fn_name, fn_arg_number):
     module = builder.module
     symbol = user_symbol(fn_name)
