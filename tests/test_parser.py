@@ -43,6 +43,7 @@ INVALID_PROGRAMS = [
     ("unclosed block", "(if (1) {"),
     ("missing if parens", "if (1) { print(1) }"),
     ("dangling operator", "1 +"),
+    ("assignment with equals", "def x = 1"),
 ]
 
 

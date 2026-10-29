@@ -30,7 +30,7 @@ def add_scope(scope_path):
     path_prefix, new_scope = scope_path[:-1], scope_path[-1]
     scope = get_scope(path_prefix)
 
-    scope_structure = {"references": {}, "nested": {}, "returns": []}
+    scope_structure = {"references": {}, "nested": {}}
 
     if path_prefix == []:
         scope[new_scope] = scope_structure
@@ -86,16 +86,6 @@ def update_reference(scope_path, name, reference):
             return scope
 
     raise NachlangNameError(f"'{name}' couldn't be found in scope for update")
-
-
-def add_return(scope_path, reference):
-    # TODO: I believe this is wrong, I don't need to add the return info here
-    # this was here in an attempt to resolve the return type of a function
-    # ahead of runtime execution, but I can't do that because I don't know
-    # the return type of a function until runtime
-    scope = get_scope(scope_path)
-    scope["returns"] = scope["returns"] + [reference]
-    return scope
 
 
 def get_reference(scope_path, name):

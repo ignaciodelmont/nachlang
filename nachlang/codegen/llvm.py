@@ -78,6 +78,13 @@ def nach_print(builder, value):
     return core.nach_print(builder, value)
 
 
+def load_bool(builder, value):
+    """
+    Loads the raw i1 out of a nachtype
+    """
+    return core.load_bool(builder, value)
+
+
 def is_truthy(builder, value):
     """
     Checks if a nachtype is truthy

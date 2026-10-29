@@ -52,7 +52,6 @@ tokens = [
     ("DEF", keyword(r"def")),
     ("MUT", keyword(r"mut")),
     ("VAR", r"[a-zA-Z_][a-zA-Z0-9_]*"),
-    ("ASSIGN", r"="),
     # Number
     ("NUMBER", r"\d+"),
     # String. A backslash escapes the character after it, so a string can

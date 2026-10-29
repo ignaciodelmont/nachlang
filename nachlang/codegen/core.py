@@ -11,7 +11,6 @@ NUMBER = ir.DoubleType()
 INT32 = ir.IntType(32)
 INT64 = ir.IntType(64)
 STRING = ir.IntType(8)
-VOID = ir.VoidType()
 NACHTYPE = global_context.get_identified_type("struct.nachtype")
 
 NACHTYPE.set_body(INT8, NUMBER, STRING.as_pointer(), BOOL)
