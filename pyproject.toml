@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nachlang"
-version = "0.1.0"
+version = "0.1.1"
 description = "Llvm compiler for nachlang"
 authors = ["Ignacio Delmont <ignaciodelmont@gmail.com>"]
 
