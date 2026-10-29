@@ -169,3 +169,44 @@ def test_unknown_escape_is_rejected(nach):
     result = nach.run(r'print("C:\path")')
     assert result.returncode != 0
     assert r"unknown escape '\p'" in result.stderr
+
+
+# Booleans are tag 2. The comparison dispatch only knew tags 0 and 1, so every
+# comparison of two booleans used to fall through to "false".
+@pytest.mark.parametrize(
+    "expression,expected",
+    [
+        ("true == true", TRUE),
+        ("false == false", TRUE),
+        ("true == false", FALSE),
+        ("true != false", TRUE),
+        ("true != true", FALSE),
+        ("(1 < 2) == true", TRUE),
+        ("false < true", TRUE),
+        ("true > false", TRUE),
+        ("true <= true", TRUE),
+    ],
+)
+def test_bool_comparison(nach, expression, expected):
+    assert nach.output(f"print({expression})") == [expected]
+
+
+# The type check used to be computed and discarded, with the comparison then
+# dispatching on the left operand alone and reading garbage from the right.
+@pytest.mark.parametrize(
+    "expression,expected",
+    [
+        ('1 == "1"', FALSE),
+        ('1 != "1"', TRUE),
+        ('"1" != 1', TRUE),
+        ("1 == true", FALSE),
+        ("1 != true", TRUE),
+        ('"a" == true', FALSE),
+        ('"a" != true', TRUE),
+        ("0 == false", FALSE),
+        ("0 != false", TRUE),
+        ('1 < "2"', FALSE),
+    ],
+)
+def test_values_of_different_kinds_are_never_equal(nach, expression, expected):
+    assert nach.output(f"print({expression})") == [expected]
