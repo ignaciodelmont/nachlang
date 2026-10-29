@@ -211,3 +211,24 @@ def test_a_function_named_main_does_not_replace_the_entry_point(nach):
         print(main(4))
     """
     assert nach.output(source) == [num(8)]
+
+
+def test_empty_body_returns_zero(nach):
+    assert nach.output("defn f() { } print(f())") == [num(0)]
+
+
+# A bare return used to crash the compiler with IndexError.
+def test_bare_return_yields_zero(nach):
+    assert nach.output("defn f() { return } print(f())") == [num(0)]
+
+
+def test_bare_return_leaves_the_function_early(nach):
+    source = """
+        defn f(n) {
+            (if (n) { return })
+            return 9
+        }
+        print(f(1))
+        print(f(0))
+    """
+    assert nach.output(source) == [num(0), num(9)]

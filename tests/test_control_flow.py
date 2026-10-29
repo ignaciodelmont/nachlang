@@ -82,3 +82,20 @@ def test_loop_containing_a_conditional(nach):
         })
     """
     assert nach.output(source) == ["hit"]
+
+
+# An empty body used to be a syntax error.
+def test_if_with_an_empty_body(nach):
+    assert nach.output("(if (true) { }) print(1)") == [num(1)]
+
+
+def test_if_with_an_empty_else(nach):
+    assert nach.output("(if (false) { print(0) } { }) print(2)") == [num(2)]
+
+
+def test_if_with_an_empty_then_and_a_real_else(nach):
+    assert nach.output("(if (true) { } { print(0) }) print(3)") == [num(3)]
+
+
+def test_loop_with_an_empty_body(nach):
+    assert nach.output("def i 0 (loop (i < 0) { }) print(4)") == [num(4)]

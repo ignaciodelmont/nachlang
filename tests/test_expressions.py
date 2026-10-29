@@ -210,3 +210,44 @@ def test_bool_comparison(nach, expression, expected):
 )
 def test_values_of_different_kinds_are_never_equal(nach, expression, expected):
     assert nach.output(f"print({expression})") == [expected]
+
+
+# Comparison operators used to have no precedence entry, which made them bind
+# looser than `and` and `or`: `1 < 2 and 3 < 4` parsed as `1 < (2 and (3 < 4))`.
+@pytest.mark.parametrize(
+    "expression,expected",
+    [
+        ("1 < 2 and 3 < 4", TRUE),
+        ("1 < 2 and 3 > 4", FALSE),
+        ("1 < 2 or 5 < 4", TRUE),
+        ("1 > 2 or 5 < 4", FALSE),
+        ("(1 < 2) and (3 < 4)", TRUE),
+        ("2 + 3 * 4 == 14", TRUE),
+        ("1 == 1 == true", TRUE),
+    ],
+)
+def test_comparison_binds_tighter_than_logical_operators(nach, expression, expected):
+    assert nach.output(f"print({expression})") == [expected]
+
+
+def test_chained_comparison_compares_a_bool_to_a_number(nach):
+    # Left-associative: (1 < 2) < 3 is true < 3, a mixed-kind comparison.
+    assert nach.output("print(1 < 2 < 3)") == [FALSE]
+
+
+# print is an expression, so it has a value: the last thing it printed.
+def test_print_yields_its_last_argument(nach):
+    assert nach.output("def x print(5) print(x + 1)") == [num(5), num(6)]
+
+
+def test_print_of_several_yields_the_last(nach):
+    assert nach.output("def x print(1 2 3) print(x)") == [
+        num(1),
+        num(2),
+        num(3),
+        num(3),
+    ]
+
+
+def test_print_of_nothing_yields_zero(nach):
+    assert nach.output("def x print() print(x)") == [num(0)]
