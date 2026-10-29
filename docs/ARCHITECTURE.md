@@ -64,20 +64,22 @@ Each production is a decorated function that returns a node:
 ```
 
 The AST is therefore a tree of plain dicts whose `value` lists hold either
-further nodes or the raw rply tokens, including punctuation. Code generation
-indexes into those lists positionally -- `define_var[1]` is the name token,
-`define_var[2]` the expression -- and strips parentheses where it needs the
-inner expression. This is simple and it is also why the generator is tightly
+further nodes or the raw rply tokens, parentheses included. Braces are the
+exception: a `block` production consumes them and yields the statement list
+inside, or an empty one for `{ }`. Code generation indexes into those lists
+positionally -- `define_var[1]` is the name token, `define_var[2]` the
+expression -- and strips parentheses where it needs the inner expression. This is simple and it is also why the generator is tightly
 coupled to the exact shape of each production.
 
-The grammar declares precedence for arithmetic and the logical operators but
-not for comparisons, and two of its productions
+The grammar declares precedence for the arithmetic, comparison and logical
+operators, and two of its productions
 (`argument_values : argument_values argument_values`, and the same shape for
-`arguments`) are ambiguous. rply resolves the resulting 122 shift/reduce and
-9 reduce/reduce conflicts with its defaults, and those defaults are where the
-language's comparison-precedence quirk comes from. The generator warnings
-that report the conflicts are suppressed unless `NACHLANG_PARSER_WARNINGS` is
-set.
+`arguments`) are ambiguous. rply resolves the remaining 50 shift/reduce and
+9 reduce/reduce conflicts with its defaults. There were 122 before the
+comparison operators had a precedence level, and the defaults then made them
+bind looser than `and`, so that `1 < 2 and 3 < 4` was false. The generator
+warnings that report the conflicts are suppressed unless
+`NACHLANG_PARSER_WARNINGS` is set.
 
 Two behaviours are implemented around the parser rather than in the grammar.
 A registered error handler turns rply's bare `ParsingError` -- whose message
@@ -292,7 +294,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 291 tests, split by language feature, and run in about 19
+`tests/` holds 316 tests, split by language feature, and run in about 21
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,

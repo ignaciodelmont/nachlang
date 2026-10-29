@@ -4,18 +4,11 @@
 
 ### Bugs found while writing the language reference
 
-- Comparison operators have no entry in the parser's precedence table, so
-  they bind looser than `and`/`or` and cannot be chained: `1 < 2 and 3 < 4`
-  parses as `1 < (2 and (3 < 4))` and is false. Adding `("left", [EQ, NEQ,
-  LT, LTE, GT, GTE])` above `AND` in `parser.py` is the fix; it will change
-  the conflict count, so check `NACHLANG_PARSER_WARNINGS=1` before and after.
 - A `def` inside an `if` or `loop` body is registered in the enclosing scope,
   so it is visible after the block, but its `alloca` sits in a basic block
   that does not dominate the later use and LLVM rejects the module. Either
   blocks need a scope of their own or every `alloca` needs to go in the
   function's entry block.
-- A bare `return` crashes with IndexError, and `return` at the top level
-  crashes with an empty message. Both should be reported as syntax errors.
 
 - Do runtime type checks on arithmetic. Comparison now checks kinds, but
   `add`, `sub`, `mul` and `div` read the number field of whatever they are
@@ -27,9 +20,10 @@
 
 ## Rough edges worth a look
 
-- The grammar is ambiguous: 122 shift/reduce and 9 reduce/reduce conflicts.
+- The grammar is ambiguous: 50 shift/reduce and 9 reduce/reduce conflicts,
+  down from 122 once the comparison operators got a precedence level.
   `argument_values : argument_values argument_values` and the matching rule for
-  `arguments` are the cause. Warnings are hidden unless
+  `arguments` are what remains. Warnings are hidden unless
   `NACHLANG_PARSER_WARNINGS` is set, which makes it easy to forget.
 - `ASSIGN` (`=`) is lexed but appears in no production, so it is dead weight
   the way `COMMA` was before it became decorative.
