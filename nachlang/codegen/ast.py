@@ -183,9 +183,7 @@ def resolve_loop_statement(loop_statement, context):
     )
 
     # Extract the boolean value and create conditional branch
-    from nachlang.codegen.core import load_bool
-
-    condition_bool = load_bool(builder, casted_conditional_expression)
+    condition_bool = llvm.load_bool(builder, casted_conditional_expression)
     builder.cbranch(condition_bool, loop_body_block, loop_end_block)
 
     # Body block: execute loop body and jump back to condition

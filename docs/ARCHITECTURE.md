@@ -347,6 +347,3 @@ release-please-config.json
                     the current version, as release-please tracks it
 CHANGELOG.md        written by release-please from the first release on
 ```
-
-`nachlang/nach_types.py`, `types.py` and `debugger.py` are not part of the
-pipeline. They are listed in `TODOS.md` as candidates for deletion.

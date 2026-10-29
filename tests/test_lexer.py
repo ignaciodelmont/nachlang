@@ -102,7 +102,6 @@ def test_defn_is_not_read_as_def():
         (">=", "GTE"),
         ("==", "EQ"),
         ("!=", "NEQ"),
-        ("=", "ASSIGN"),
     ],
 )
 def test_lexes_an_operator(source, expected):

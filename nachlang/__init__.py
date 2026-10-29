@@ -33,7 +33,7 @@ def verify_llvm():
     if not shutil.which("lli"):
         # pylint: disable=broad-exception-raised
         raise Exception(
-            "LLVM not found. Please install LLVM 15 or make sure it's in your PATH."
+            "LLVM not found: `lli` must be on PATH (brew install llvm@14 or newer)."
         )
 
 
