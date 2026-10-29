@@ -85,6 +85,13 @@ def is_truthy(builder, value):
     return core.is_truthy(builder, value)
 
 
+def allocate_local_slot(builder, name):
+    """
+    Reserves a stack slot for a local in the function's entry block
+    """
+    return core.allocate_local_slot(builder, name)
+
+
 def define_global_variable(builder, name):
     """
     Defines a module level slot for a top level variable

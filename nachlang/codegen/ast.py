@@ -1,21 +1,38 @@
+import itertools
 from contextlib import contextmanager
 from functools import partial
 
 from nachlang import symbol_table, utils
-from nachlang.errors import NachlangSyntaxError
 from nachlang.codegen import llvm
-from nachlang.codegen.core import INT32, NACHTYPE
+from nachlang.codegen.core import INT32
+from nachlang.errors import NachlangSyntaxError
 
 # The scope the program body runs in, named after the function it becomes.
 TOP_LEVEL_SCOPE = "main"
 
+_block_ids = itertools.count()
+
+
+def block_scope_name():
+    """
+    A fresh scope name for an if or loop body, so two bodies in the same
+    function never share one.
+    """
+    return f"block{next(_block_ids)}"
+
 
 @contextmanager
-def nested_scope_context(current_context, new_builder, scope_name):
+def nested_scope_context(current_context, new_builder, scope_name, function=None):
+    """
+    A context for a scope nested in the current one. `function` names the
+    function being entered; left unset, the new scope is a block inside
+    whatever function the current context is already in.
+    """
     yield create_context(
         new_builder,
         current_context["scope_path"] + [scope_name],
         current_context["names_used_in_functions"],
+        function if function is not None else current_context["function"],
     )
 
 
@@ -127,11 +144,16 @@ def resolve_if_statement(if_statement, context):
         then,
         otherwise,
     ):
+        builder = context["builder"]
         with then:
-            resolve_ast_node(if_statement[3], context)
+            with nested_scope_context(context, builder, block_scope_name()) as block:
+                resolve_ast_node(if_statement[3], block)
         with otherwise:
             if len(if_statement) == 6:
-                resolve_ast_node(if_statement[4], context)
+                with nested_scope_context(
+                    context, builder, block_scope_name()
+                ) as block:
+                    resolve_ast_node(if_statement[4], block)
 
 
 def resolve_loop_statement(loop_statement, context):
@@ -168,7 +190,8 @@ def resolve_loop_statement(loop_statement, context):
 
     # Body block: execute loop body and jump back to condition
     builder.position_at_end(loop_body_block)
-    resolve_ast_node(loop_statement[3], context)
+    with nested_scope_context(context, builder, block_scope_name()) as block:
+        resolve_ast_node(loop_statement[3], block)
     # Only branch back if the current block isn't terminated (e.g., by a return statement)
     if not builder.block.is_terminated:
         builder.branch(loop_condition_block)
@@ -210,11 +233,13 @@ def resolve_defn_function(function_definition, context):
     fn_name = function_definition[1].value
     fn_arg_names = [a.value for a in function_definition[3]["value"]]
     fn_builder, fn = llvm.defn_function(context["builder"], fn_name, len(fn_arg_names))
-    with nested_scope_context(context, fn_builder, fn_name) as nested_context:
+    with nested_scope_context(
+        context, fn_builder, fn_name, function=fn_name
+    ) as nested_context:
         fn_args = fn.args
         # Allocate stack space for each function argument to make them mutable
         for arg_name, arg in zip(fn_arg_names, fn_args):
-            arg_alloca = fn_builder.alloca(NACHTYPE.as_pointer(), name=arg_name)
+            arg_alloca = llvm.allocate_local_slot(fn_builder, arg_name)
             fn_builder.store(arg, arg_alloca)
             symbol_table.add_reference(
                 nested_context["scope_path"], arg_name, arg_alloca
@@ -241,7 +266,7 @@ def resolve_return(return_exp, context):
         return_exp: A dict representing a return statement
         context: A dict representing the context
     """
-    if is_top_level(context):
+    if context["function"] is None:
         source_pos = return_exp[0].getsourcepos()
         raise NachlangSyntaxError(
             "'return' outside of a function",
@@ -288,7 +313,7 @@ def resolve_define_var(define_var, context):
     if is_top_level(context) and var_name in context["names_used_in_functions"]:
         var_slot = llvm.define_global_variable(builder, var_name)
     else:
-        var_slot = builder.alloca(NACHTYPE.as_pointer(), name=var_name)
+        var_slot = llvm.allocate_local_slot(builder, var_name)
 
     # Store the initial value
     builder.store(resolved_expression, var_slot)
@@ -477,7 +502,9 @@ def is_top_level(context):
     return context["scope_path"] == [TOP_LEVEL_SCOPE]
 
 
-def create_context(builder, scope_path, names_used_in_functions=frozenset()):
+def create_context(
+    builder, scope_path, names_used_in_functions=frozenset(), function=None
+):
     """
     Creates a context which provides context information for code generation
 
@@ -486,7 +513,8 @@ def create_context(builder, scope_path, names_used_in_functions=frozenset()):
     {
         "builder": <llvmlite Builder Object>,
         "scope_path": <scope set for context>: [str],
-        "names_used_in_functions": <names any function body mentions>: set
+        "names_used_in_functions": <names any function body mentions>: set,
+        "function": <name of the enclosing function, or None at top level>
     }
     """
     symbol_table.add_scope(scope_path)
@@ -494,6 +522,7 @@ def create_context(builder, scope_path, names_used_in_functions=frozenset()):
         "builder": builder,
         "scope_path": scope_path,
         "names_used_in_functions": names_used_in_functions,
+        "function": function,
     }
 
 

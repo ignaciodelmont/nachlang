@@ -99,3 +99,19 @@ def test_if_with_an_empty_then_and_a_real_else(nach):
 
 def test_loop_with_an_empty_body(nach):
     assert nach.output("def i 0 (loop (i < 0) { }) print(4)") == [num(4)]
+
+
+# A def inside a loop body used to emit its alloca inside the body, so the
+# stack grew on every iteration and a long enough loop segfaulted at -O0.
+# Every alloca now goes in the entry block. This runs at the optimisation
+# level where the crash showed; -O3 hid it by deleting the alloca.
+def test_a_def_inside_a_long_loop_does_not_exhaust_the_stack(nach):
+    source = """
+        def i 0
+        (loop (i < 2000000) {
+            def t (i * 2)
+            mut i (i + 1)
+        })
+        print(i)
+    """
+    assert nach.output(source, "--opt-level", "0") == [num(2000000)]
