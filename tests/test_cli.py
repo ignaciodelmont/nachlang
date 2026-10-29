@@ -135,3 +135,18 @@ def test_version_flag_matches_pyproject():
     )
     assert result.returncode == 0
     assert result.stdout.strip() == f"nachlang {declared}"
+
+
+# A top level return used to crash with an empty message, or with a raw LLVM
+# error when it sat inside an if.
+def test_return_outside_a_function_is_reported(nach):
+    result = nach.run("return 5")
+    assert result.returncode != 0
+    assert "line 1, column 1: 'return' outside of a function" in result.stderr
+
+
+def test_return_outside_a_function_inside_a_block_is_reported(nach):
+    result = nach.run("(if (true) { return 1 })")
+    assert result.returncode != 0
+    assert "'return' outside of a function" in result.stderr
+    assert "internal error" not in result.stderr

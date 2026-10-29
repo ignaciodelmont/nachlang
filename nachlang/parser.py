@@ -10,6 +10,7 @@ pg = rply.ParserGenerator(
     precedence=[
         ("left", ["OR"]),
         ("left", ["AND"]),
+        ("left", ["EQ", "NEQ", "LT", "LTE", "GT", "GTE"]),
         ("left", ["PLUS_SIGN", "MINUS_SIGN"]),
         ("left", ["MULTIPLICATION_SIGN"]),
         ("left", ["DIVISION_SIGN"]),
@@ -45,21 +46,31 @@ def statement(p):
     return build_response("statement", p)
 
 
-@pg.production(
-    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
-)
-@pg.production(
-    "if_statement : OPEN_PAREN IF expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
-)
+@pg.production("if_statement : OPEN_PAREN IF expression block block CLOSE_PAREN")
+@pg.production("if_statement : OPEN_PAREN IF expression block CLOSE_PAREN")
 def if_statement(p):
     return build_response("if_statement", p)
 
 
-@pg.production(
-    "loop_statement : OPEN_PAREN LOOP expression OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA CLOSE_PAREN"
-)
+@pg.production("loop_statement : OPEN_PAREN LOOP expression block CLOSE_PAREN")
 def loop_statement(p):
     return build_response("loop_statement", p)
+
+
+@pg.production("block : OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA")
+@pg.production("block : OPEN_CURLY_BRA CLOSE_CURLY_BRA")
+def block(p):
+    """
+    A braced statement list.
+
+    The braces are consumed here rather than kept in the AST, and an empty
+    pair yields an empty list, so `{ }` is a valid body. Giving statement_list
+    an empty production would allow that too, at the cost of two more
+    reduce/reduce conflicts in the grammar.
+    """
+    if len(p) == 3:
+        return p[1]
+    return build_response("statement_list", [])
 
 
 @pg.production("expression : OPEN_PAREN expression CLOSE_PAREN")
@@ -112,9 +123,7 @@ def return_(p):
 
 
 # TODO: Rename VAR -> NAME
-@pg.production(
-    "define_function : DEFN VAR OPEN_PAREN arguments CLOSE_PAREN OPEN_CURLY_BRA statement_list CLOSE_CURLY_BRA"
-)
+@pg.production("define_function : DEFN VAR OPEN_PAREN arguments CLOSE_PAREN block")
 def define_func(p):
     return build_response("define_function", p)
 

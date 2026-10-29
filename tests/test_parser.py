@@ -30,6 +30,11 @@ VALID_PROGRAMS = [
     ("empty", ""),
     ("comment only", "# nothing at all"),
     ("blank lines only", "\n\n"),
+    ("empty if body", "(if (1) { })"),
+    ("empty else body", "(if (1) { print(1) } { })"),
+    ("empty loop body", "(loop (0) { })"),
+    ("empty function body", "defn f() { }"),
+    ("bare return", "defn f() { return }"),
 ]
 
 INVALID_PROGRAMS = [

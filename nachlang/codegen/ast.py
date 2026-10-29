@@ -110,8 +110,12 @@ def resolve_binary_operation(binary_operation, context):
 def resolve_if_statement(if_statement, context):
     """
     If statement can be of two forms:
-    1. (if (expression) {statement_list})
-    2. (if (expression) {statement_list} {statement_list})
+    1. (if expression block)
+    2. (if expression block block)
+
+    The parser folds each braced block into a statement_list node, so the
+    node is [OPEN_PAREN, IF, expression, then, CLOSE_PAREN] or
+    [OPEN_PAREN, IF, expression, then, otherwise, CLOSE_PAREN].
     """
     resolved_conditional_expression = resolve_expression(
         if_statement[2]["value"], context
@@ -124,13 +128,10 @@ def resolve_if_statement(if_statement, context):
         otherwise,
     ):
         with then:
-            resolve_ast_node(if_statement[4], context)
+            resolve_ast_node(if_statement[3], context)
         with otherwise:
-            # if/else scenario has 10 items
-            if len(if_statement) == 10:
-                resolve_ast_node(if_statement[7], context)
-            else:
-                pass
+            if len(if_statement) == 6:
+                resolve_ast_node(if_statement[4], context)
 
 
 def resolve_loop_statement(loop_statement, context):
@@ -167,7 +168,7 @@ def resolve_loop_statement(loop_statement, context):
 
     # Body block: execute loop body and jump back to condition
     builder.position_at_end(loop_body_block)
-    resolve_ast_node(loop_statement[4], context)
+    resolve_ast_node(loop_statement[3], context)
     # Only branch back if the current block isn't terminated (e.g., by a return statement)
     if not builder.block.is_terminated:
         builder.branch(loop_condition_block)
@@ -181,10 +182,21 @@ def resolve_print_expression(print_exp, context):
     print takes any number of arguments and prints each on its own line.
     Only the first used to be resolved, so the rest were parsed and then
     silently dropped.
+
+    print is an expression in the grammar, so it has to have a value. It
+    yields the last argument it printed, which costs nothing, or the number 0
+    when there were none. Yielding nothing crashed the compiler on
+    `def x print(1)`.
     """
     builder = context["builder"]
+    value = None
     for argument in print_exp[2]["value"]:
-        llvm.nach_print(builder, resolve_expression(argument["value"], context))
+        value = resolve_expression(argument["value"], context)
+        llvm.nach_print(builder, value)
+
+    if value is None:
+        value = llvm.allocate_number(builder, 0)
+    return value
 
 
 def resolve_is_truthy_expression(is_truthy_exp, context):
@@ -208,7 +220,7 @@ def resolve_defn_function(function_definition, context):
                 nested_context["scope_path"], arg_name, arg_alloca
             )
 
-        resolve_ast_node(function_definition[6], nested_context)
+        resolve_ast_node(function_definition[5], nested_context)
 
         # NOTE: if the last block of a function is not terminated, i.e there's no return
         # statement, we need add an implicit return statement
@@ -220,12 +232,28 @@ def resolve_return(return_exp, context):
     """
     Resolves a return statement
 
+    A bare `return` yields the number 0, the same value a function produces
+    by running off the end of its body. A `return` outside any function is
+    reported rather than emitted: main returns an int, so the IR would not
+    verify, and the LLVM error that produced was unreadable.
+
     Args:
         return_exp: A dict representing a return statement
         context: A dict representing the context
     """
+    if is_top_level(context):
+        source_pos = return_exp[0].getsourcepos()
+        raise NachlangSyntaxError(
+            "'return' outside of a function",
+            line=source_pos.lineno if source_pos else None,
+            column=source_pos.colno if source_pos else None,
+        )
+
     builder = context["builder"]
-    return_value = resolve_expression(return_exp[1]["value"], context)
+    if len(return_exp) == 1:
+        return_value = llvm.allocate_number(builder, 0)
+    else:
+        return_value = resolve_expression(return_exp[1]["value"], context)
     llvm.return_(builder, return_value)
 
 

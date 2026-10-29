@@ -209,31 +209,22 @@ bool(0)
 bool(1)
 ```
 
-One thing to know about comparison, which the compiler currently gets wrong
-and which is on the to-do list:
-
-**Comparison operators have no declared precedence**, which makes them bind
-*looser* than everything, including `and` and `or`. So
-
-```
-1 < 2 and 3 < 4
-```
-
-is read as `1 < (2 and (3 < 4))`, which compares a number to a boolean and is
-therefore false. Comparisons chained or combined with `and`/`or` must be
-parenthesised:
+Comparison binds looser than arithmetic and tighter than `and` and `or`, so
+`2 + 3 * 4 == 14` and `1 < 2 and 3 < 4` both read the way they look. The
+operators are left associative, which makes a chain like `1 < 2 < 3` mean
+`(1 < 2) < 3` -- a boolean compared to a number, which is false. Chaining is
+not a range test.
 
 ```nachlang
+print(2 + 3 * 4 == 14)
 print(1 < 2 and 3 < 4)
-print((1 < 2) and (3 < 4))
+print(1 < 2 < 3)
 ```
 ```output
-bool(0)
 bool(1)
+bool(1)
+bool(0)
 ```
-
-Arithmetic does bind tighter than comparison, so `2 + 3 * 4 == 14` is true
-without parentheses.
 
 ### Logical operators
 
@@ -266,9 +257,9 @@ fallback
 | 1 | parentheses, function calls | — |
 | 2 | `*`  `/` | left |
 | 3 | `+`  `-` | left |
-| 4 | `and` | left |
-| 5 | `or` | left |
-| 6 | `==` `!=` `<` `<=` `>` `>=` | none declared; parenthesise |
+| 4 | `==` `!=` `<` `<=` `>` `>=` | left |
+| 5 | `and` | left |
+| 6 | `or` | left |
 
 The grammar lists `/` one level above `*`, but since `(a * b) / c` and
 `a * (b / c)` are the same number, that is unobservable.
@@ -322,7 +313,8 @@ print(x)
 
 `print(a b ...)` writes each argument on its own line, in the format shown in
 the Values table. `print()` with no arguments prints nothing. `print` is an
-expression in the grammar, but its value is not meaningful.
+expression, and its value is the last argument it printed -- or the number
+`0` if there were none -- so `def x print(5)` prints `5` and sets `x` to it.
 
 ```nachlang
 print(1 "two" true)
@@ -342,7 +334,7 @@ bool(1)
 
 The whole form is wrapped in parentheses. The condition is any expression and
 is tested for truthiness. The second block, if present, runs when the
-condition is falsy.
+condition is falsy. Either block may be empty: `{ }`.
 
 ```nachlang
 def n 7
@@ -362,7 +354,7 @@ done
 ```
 
 Runs the body while the condition is truthy, testing before each iteration.
-There is no `break`.
+The body may be empty. There is no `break`.
 
 ```nachlang
 def i 0
@@ -387,15 +379,16 @@ Parameters are names, separated by whitespace or commas. See Functions below.
 
 ### `return`
 
-`return expression` leaves the current function with that value. `return`
-must carry an expression: a bare `return`, or a `return` at the top level
-outside any function, is a compiler error.
+`return expression` leaves the current function with that value. A bare
+`return` leaves with the number `0`, the same value a function produces by
+running off the end of its body. A `return` outside any function is a syntax
+error.
 
 ## Functions
 
 A function takes a fixed number of parameters and returns one value. If
 control reaches the end of the body without a `return`, the function returns
-the number `0`.
+the number `0`; an empty body `{ }` is allowed and does exactly that.
 
 ```nachlang
 defn shout(a) { print("side effect") }
@@ -504,6 +497,7 @@ two are not confused.
 | unknown function | `'nosuchfn' is not a defined function` |
 | duplicate function | `'f' is already defined` |
 | wrong arity | `'f' takes 2 argument(s), got 1` |
+| return outside a function | `line 1, column 1: 'return' outside of a function` |
 
 A program that runs to completion exits with status 0.
 
@@ -513,10 +507,7 @@ The compiler has no runtime type checking, so operations on values of the
 wrong kind produce garbage rather than errors. Apart from that, the gaps in
 the language as implemented are:
 
-- Comparison operators bind looser than `and` and `or`, and cannot be
-  chained. Parenthesise them.
 - A `def` inside a block cannot be read after the block.
-- A bare `return`, or a `return` at the top level, crashes the compiler.
 - No negative or decimal literals, no `not`, no `break`, no `else if`.
 - No string operations beyond printing and comparison: no concatenation,
   length or indexing.
@@ -524,8 +515,8 @@ the language as implemented are:
 - Nothing is ever freed. A long-running program grows without bound unless
   compiled with `--libgc-path` to use the Boehm collector.
 
-The first three are bugs; the rest are features not yet built. All are
-tracked in `TODOS.md`.
+The first is a bug; the rest are features not yet built. All are tracked
+in `TODOS.md`.
 
 ## Grammar
 
@@ -563,6 +554,6 @@ binary_op      = "+" | "-" | "*" | "/"
 
 Commas are consumed by the lexer and never reach the grammar, which is why
 they appear nowhere above. The grammar is ambiguous as written -- rply
-reports 122 shift/reduce and 9 reduce/reduce conflicts -- and relies on its
-precedence table and on rply's default of shifting to resolve them. That
-default is the source of the comparison-precedence behaviour described above.
+reports 50 shift/reduce and 9 reduce/reduce conflicts, down from 122 before
+the comparison operators had a precedence level -- and relies on its
+precedence table and on rply's default of shifting to resolve the rest.
