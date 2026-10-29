@@ -32,6 +32,11 @@ USE_GC = False
 GC_VERIFIED_PATH = None
 GC_ALLOC_ATTRS = True
 
+# Arithmetic checks both operands' tags before reading the number field.
+# Turning it off exists to measure what the check costs: two loads per
+# operation, which the optimiser folds away in loops but not across calls.
+RUNTIME_CHECKS = True
+
 # LLVM knows what `malloc` means through TargetLibraryInfo, so it can delete
 # allocations that never escape. `GC_malloc` is just an opaque external call
 # and gets no such treatment unless it is annotated as an allocator.
@@ -414,6 +419,91 @@ def define_allocate_bool(builder):
 
 
 #
+# Runtime failure
+#
+
+KIND_NAMES = {0: "number", 1: "string", 2: "bool"}
+
+OPERATOR_SYMBOLS = {"add": "+", "sub": "-", "mul": "*", "div": "/"}
+
+
+def c_string_constant(builder, name, text):
+    """
+    A pointer to a NUL-terminated global string constant
+    """
+    constant = global_constant(
+        builder, name, _make_bytearray(text.encode("utf8") + b"\0")
+    )
+    return constant.gep([INT32(0), INT32(0)])
+
+
+def define_kind_name(builder):
+    """
+    Defines nach_kind_name: the human name of a type tag, for error messages
+    """
+    module = builder.module
+    function_type = ir.FunctionType(STRING.as_pointer(), [INT8])
+    function = ir.Function(module, function_type, name="nach_kind_name")
+    entry = function.append_basic_block("entry")
+    fn_builder = ir.IRBuilder(entry)
+    (tag,) = function.args
+
+    default_block = function.append_basic_block("kind_unknown")
+    fn_builder.position_at_end(default_block)
+    fn_builder.ret(c_string_constant(builder, "kind_unknown", "unknown"))
+
+    cases = {}
+    for tag_value, kind in KIND_NAMES.items():
+        block = function.append_basic_block(f"kind_{kind}")
+        fn_builder.position_at_end(block)
+        fn_builder.ret(c_string_constant(builder, f"kind_{kind}", kind))
+        cases[tag_value] = block
+
+    fn_builder.position_at_end(entry)
+    switch_handler = fn_builder.switch(tag, default_block)
+    for tag_value, block in cases.items():
+        switch_handler.add_case(INT8(tag_value), block)
+
+
+def define_fail_binary(builder):
+    """
+    Defines nach_fail_binary, which reports an arithmetic operator applied to
+    the wrong kinds of value on stderr and exits with status 1. The program's
+    output so far is flushed on the way out. It never returns.
+    """
+    module = builder.module
+    function_type = ir.FunctionType(
+        VOID, [STRING.as_pointer(), NACHTYPE.as_pointer(), NACHTYPE.as_pointer()]
+    )
+    function = ir.Function(module, function_type, name="nach_fail_binary")
+    function.attributes.add("noreturn")
+    # cold tells the optimiser the call is unlikely, so the check in every
+    # arithmetic function is laid out as the fall-through path.
+    function.attributes.add("cold")
+    fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
+    operator, lhs_ptr, rhs_ptr = function.args
+
+    kind_name = get_symbol_by_name(fn_builder, "nach_kind_name")
+    message = c_string_constant(
+        builder,
+        "binary_error_format",
+        "runtime error: %s expects numbers, got %s and %s\n",
+    )
+    fn_builder.call(
+        get_symbol_by_name(fn_builder, "dprintf"),
+        [
+            INT32(2),
+            message,
+            operator,
+            fn_builder.call(kind_name, [load_type(fn_builder, lhs_ptr)]),
+            fn_builder.call(kind_name, [load_type(fn_builder, rhs_ptr)]),
+        ],
+    )
+    fn_builder.call(get_symbol_by_name(fn_builder, "exit"), [INT32(1)])
+    fn_builder.unreachable()
+
+
+#
 # Ops
 #
 
@@ -438,12 +528,42 @@ def _define_binary_operation(builder, name):
     function = ir.Function(module, function_type, name=name)
     fn_builder = ir.IRBuilder(function.append_basic_block("entry"))
     lhs_ptr, rhs_ptr = function.args
+
+    # Both operands must be numbers. Anything else used to have its number
+    # field read regardless, which for a string is uninitialised memory and
+    # came out as nan.
+    if RUNTIME_CHECKS:
+        emit_number_check(builder, fn_builder, name, lhs_ptr, rhs_ptr)
+
     lhs = load_number(fn_builder, lhs_ptr)
     rhs = load_number(fn_builder, rhs_ptr)
     operation = get_op(fn_builder)
     result = operation(lhs, rhs)
 
     fn_builder.ret(allocate_number(fn_builder, result))
+
+
+def emit_number_check(builder, fn_builder, name, lhs_ptr, rhs_ptr):
+    """
+    Branches to nach_fail_binary unless both operands carry the number tag.
+    """
+    lhs_is_number = fn_builder.icmp_signed(
+        "==", load_type(fn_builder, lhs_ptr), INT8(0)
+    )
+    rhs_is_number = fn_builder.icmp_signed(
+        "==", load_type(fn_builder, rhs_ptr), INT8(0)
+    )
+    both_numbers = fn_builder.and_(lhs_is_number, rhs_is_number)
+    with fn_builder.if_then(fn_builder.not_(both_numbers)):
+        fn_builder.call(
+            get_symbol_by_name(fn_builder, "nach_fail_binary"),
+            [
+                c_string_constant(builder, f"operator_{name}", OPERATOR_SYMBOLS[name]),
+                lhs_ptr,
+                rhs_ptr,
+            ],
+        )
+        fn_builder.unreachable()
 
 
 def define_add(builder):
@@ -964,6 +1084,28 @@ def declare_strcpy(builder):
     ir.Function(module, fnty, name="strcpy")
 
 
+def declare_dprintf(builder):
+    """
+    Declares dprintf, which is printf onto a file descriptor. Runtime errors
+    go to descriptor 2 through it, which avoids needing the platform's name
+    for the stderr FILE* -- __stderrp on macOS, stderr on Linux.
+    """
+    module = builder.module
+    fnty = ir.FunctionType(INT32, [INT32, STRING.as_pointer()], var_arg=True)
+    ir.Function(module, fnty, name="dprintf")
+
+
+def declare_exit(builder):
+    """
+    Declares exit. Unlike _exit it flushes stdio first, so whatever a program
+    printed before failing still reaches stdout.
+    """
+    module = builder.module
+    fnty = ir.FunctionType(VOID, [INT32])
+    function = ir.Function(module, fnty, name="exit")
+    function.attributes.add("noreturn")
+
+
 def declare_strlen(builder):
     """
     Declares strlen function in the module
@@ -1157,6 +1299,8 @@ def initialize():
             declare_strcmp,
             declare_strcpy,
             declare_strlen,
+            declare_dprintf,
+            declare_exit,
             define_allocate_nachtype,
             define_load_number,
             define_load_number_as_int,
@@ -1173,6 +1317,8 @@ def initialize():
             define_compare_strings,
             define_is_truthy,
             define_comparing_fns,
+            define_kind_name,
+            define_fail_binary,
             define_add,
             define_sub,
             define_mul,

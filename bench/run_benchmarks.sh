@@ -286,6 +286,11 @@ for entry in "${BENCHMARKS[@]}"; do
         skip "NachLang JIT -O0 (malloc)" "$reason"
     fi
     measure "NachLang JIT (malloc)" "$expected" "${NACHLANG[@]}" "$nach"
+    # Same, minus the tag check on every arithmetic operation. The difference
+    # is the price of runtime type checking; it is nil where the optimiser
+    # elides the allocations and real on recursion, where it cannot.
+    measure "NachLang JIT, unchecked" "$expected" \
+        "${NACHLANG[@]}" "$nach" --no-runtime-checks
 
     if emit_ir "$nach" "$WORK_DIR/${label}.malloc.ll"; then
         for level in 1 2 3; do

@@ -2,10 +2,6 @@
 
 ## Language
 
-- Do runtime type checks on arithmetic. Comparison now checks kinds, but
-  `add`, `sub`, `mul` and `div` read the number field of whatever they are
-  given, so `"a" + 1` quietly yields `nan` instead of complaining
-  (`codegen/core.py`).
 - String operations: concatenation, length, indexing. Escapes and printing are
   done; there is still no way to combine two strings.
 - Add Lambdas.
