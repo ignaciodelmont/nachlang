@@ -150,3 +150,19 @@ def test_return_outside_a_function_inside_a_block_is_reported(nach):
     assert result.returncode != 0
     assert "'return' outside of a function" in result.stderr
     assert "internal error" not in result.stderr
+
+
+# The tag check exists to be measured as well as relied on. Without it, the
+# old behaviour comes back: the string's number field is read and comes out
+# as nan.
+def test_no_runtime_checks_restores_the_unchecked_behaviour(nach):
+    result = nach.run('print("a" + 1)', "--no-runtime-checks")
+    assert result.returncode == 0
+    assert result.stdout.strip() == "nan"
+    assert result.stderr == ""
+
+
+def test_runtime_checks_are_on_by_default(nach):
+    result = nach.run('print("a" + 1)')
+    assert result.returncode == 1
+    assert "runtime error" in result.stderr

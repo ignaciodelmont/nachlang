@@ -111,9 +111,10 @@ operation, each a single line -- so that `ast.py` depends on a small named
 surface rather than on `core.py`'s internals.
 
 The generator does no type inference. When it emits `a + b` it emits a call
-to the runtime's `add` function with two pointers, and `add` reads the number
-field of each at runtime. The compiler does not know, and does not try to
-know, whether `a` is a number.
+to the runtime's `add` function with two pointers, and `add` checks both
+tags and reads the number field of each at runtime. The compiler does not
+know, and does not try to know, whether `a` is a number; if it is not, the
+program stops there.
 
 ## The value representation
 
@@ -149,9 +150,10 @@ under optimisation; see Performance below.
 ## The runtime prelude
 
 Every module begins with the same prelude, emitted by `core.initialize()`
-before any user code. It declares five C functions -- `printf`, `malloc` (or
-`GC_malloc`), `strcmp`, `strcpy`, `strlen` -- and defines twenty-four
-functions and seven constants of its own. Grouped by purpose:
+before any user code. It declares seven C functions -- `printf`, `malloc`
+(or `GC_malloc`), `strcmp`, `strcpy`, `strlen`, `dprintf`, `exit` -- and
+defines twenty-six functions and sixteen constants of its own. Grouped by
+purpose:
 
 | group | symbols |
 |---|---|
@@ -160,6 +162,7 @@ functions and seven constants of its own. Grouped by purpose:
 | arithmetic | `add`, `sub`, `mul`, `div` |
 | comparison | `nach_eq`, `nach_neq`, `nach_lt`, `nach_lte`, `nach_gt`, `nach_gte`, `compare_strings` |
 | logic | `nach_and`, `nach_or`, `is_truthy` |
+| failure | `nach_fail_binary`, `nach_kind_name`, the error format and kind-name strings |
 | output | `nach_print` and its three format strings |
 | constants | `NACH_TRUE`, `NACH_FALSE`, `NACH_EMPTY_STRING` |
 
@@ -175,7 +178,7 @@ of 462.
 
 User-defined functions are emitted as `nach.<name>` and top-level variables
 as `nach.var.<name>`. The prefix keeps user names out of the module's own
-namespace, which already holds the twenty-nine symbols above. Without it a
+namespace, which already holds the thirty-three symbols above. Without it a
 function called `add`, `sub`, `main` or `printf` collided with the prelude and
 llvmlite refused to build the module.
 
@@ -248,6 +251,25 @@ which lets the optimiser treat it like `malloc`. Those attributes exist from
 LLVM 15, which llvmlite bundles; IR destined for an older external `opt` can
 be emitted without them via `--no-gc-alloc-attrs`.
 
+### Runtime errors
+
+Generated code can stop the program. `nach_fail_binary` writes a message to
+file descriptor 2 through `dprintf` -- which sidesteps needing the platform's
+name for the stderr `FILE*` -- and calls `exit(1)`, which flushes stdio on
+the way out so output printed before the failure is not lost. It is marked
+`noreturn` and `cold`, and the arithmetic functions branch to it when either
+operand's tag is not a number. That is the only runtime check at present;
+the comparison functions dispatch on kind instead, and the logical operators
+accept anything.
+
+The check is two tag loads and a compare per arithmetic operation. Where the
+optimiser has already proven the operands are freshly allocated numbers --
+every loop benchmark -- it folds to nothing. Across a call boundary it
+cannot, because a parameter's tag is only known at run time, so recursion
+pays it in full: about 0.25s on `fib(35)`, which is most of that benchmark's
+former margin over CPython. `--no-runtime-checks` turns it off so that cost
+can be measured, and `bench/RESULTS.md` reports both.
+
 ## Execution
 
 `nachlang/runtime.py` takes the finished IR module and runs it:
@@ -263,8 +285,8 @@ be emitted without them via `--no-gc-alloc-attrs`.
 Step 2 did not exist for most of the project's life. The JIT compiled
 unoptimised IR directly, and the target machine's own instruction selection
 was the only optimisation applied. Adding the pipeline is the single largest
-performance change in the project's history: 2.9x on recursive `fib`, up to
-65x on loops.
+performance change in the project's history: 1.8x on recursive `fib` (2.9x
+with runtime checks off), up to 79x on loops.
 
 `main` returns `i32` rather than `void` so that tools which read the exit
 status, including `lli`, see a real value.
@@ -282,9 +304,10 @@ the allocator attributes to parse.
 
 `bench/RESULTS.md` has the numbers and the method; the shape of them is this.
 
-Unoptimised, NachLang is slower than CPython on recursion and roughly at
-parity on loops. Optimised, it is faster everywhere: 1.7x on `fib(35)`, and
-84x on a 100-million-iteration loop.
+Unoptimised, NachLang is slower than CPython on recursion and somewhat
+faster on loops. Optimised, it is roughly 100x faster on a
+100-million-iteration loop and at parity with CPython on `fib(35)` -- 1.8x
+faster with runtime type checks off, which is where that margin went.
 
 The loop result is not a faster loop. It is the optimiser proving that none
 of the structs allocated in the loop body escape, scalarising them into
@@ -301,7 +324,7 @@ still available.
 
 ## Testing and benchmarking
 
-`tests/` holds 323 tests, split by language feature, and run in about 22
+`tests/` holds 336 tests, split by language feature, and run in about 23
 seconds. The execution tests compile and run real programs in a subprocess
 and assert on their output. They are out-of-process for two reasons:
 generated code prints through `printf` to the process's file descriptor,

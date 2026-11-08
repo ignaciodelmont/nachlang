@@ -20,10 +20,12 @@ $ nachlang fib.nach
 ```
 
 Every value is a number, a string or a boolean, carried at runtime in a
-tagged struct. The compiler emits no type checks of its own; every operation
-reads the tag and branches, and LLVM's optimiser removes most of that work
-along with most of the allocations. Optimised NachLang runs 1.7x faster than
-CPython on recursive `fib(35)` and 84x faster on a tight loop.
+tagged struct. Every operation reads the tag and branches -- arithmetic on
+the wrong kind of value is a runtime error -- and LLVM's optimiser removes
+most of that work along with most of the allocations. Optimised NachLang
+runs about 100x faster than CPython on a tight loop and at parity on
+recursive `fib(35)`; the type check is what the recursion pays for, and
+`--no-runtime-checks` shows the 1.8x it costs.
 
 ## Documentation
 
@@ -66,10 +68,11 @@ poetry run nachlang program.nach
 | `--compile-only` | stop after compiling; do not run |
 | `--graph-ast` | render the AST with graphviz |
 | `--no-gc-alloc-attrs` | omit the LLVM 15 allocator attributes from `GC_malloc`, for older external tools |
+| `--no-runtime-checks` | skip the type check on arithmetic; `"a" + 1` yields `nan` instead of a runtime error. Exists to measure the check's cost |
 | `--version` | print the version and exit |
 
-Errors go to standard error and exit with status 1. A program that completes
-exits with the value `main` returned, which is 0.
+Compile-time and runtime errors go to standard error and exit with status 1.
+A program that completes exits with the value `main` returned, which is 0.
 
 Setting `NACHLANG_PARSER_WARNINGS` to any value shows rply's grammar warnings
 at startup; they are hidden by default.
@@ -77,7 +80,7 @@ at startup; they are hidden by default.
 ## Development
 
 ```sh
-poetry run pytest                   # 323 tests, ~22s
+poetry run pytest                   # 336 tests, ~23s
 poetry run format                   # black then isort, over nachlang/ and tests/
 poetry run pylint nachlang/
 QUICK=1 ./bench/run_benchmarks.sh   # benchmark smoke test

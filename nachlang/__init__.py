@@ -60,6 +60,7 @@ def _cmd_compile_and_run(
     libgc_path: Optional[str] = None,  # "/opt/homebrew/lib/libgc.1.5.4.dylib"
     opt_level: int = runtime.DEFAULT_OPT_LEVEL,
     gc_alloc_attrs: bool = True,
+    runtime_checks: bool = True,
 ):
     with open(filename, "r", encoding="utf-8") as f:
         program = f.read()
@@ -69,6 +70,7 @@ def _cmd_compile_and_run(
     core.USE_GC = should_use_gc(libgc_path)
     core.GC_VERIFIED_PATH = libgc_path if core.USE_GC else None
     core.GC_ALLOC_ATTRS = gc_alloc_attrs
+    core.RUNTIME_CHECKS = runtime_checks
 
     if graph_ast:
         graph.graph(program_ast)
@@ -99,6 +101,7 @@ def cmd_compile_and_run(  # pylint: disable=too-many-arguments
     libgc_path: Optional[str] = None,
     opt_level: int = runtime.DEFAULT_OPT_LEVEL,
     gc_alloc_attrs: bool = True,
+    runtime_checks: bool = True,
     version: bool = typer.Option(  # pylint: disable=unused-argument
         False,
         "--version",
@@ -117,6 +120,7 @@ def cmd_compile_and_run(  # pylint: disable=too-many-arguments
             libgc_path,
             opt_level,
             gc_alloc_attrs,
+            runtime_checks,
         )
     except NachlangError as error:
         # The program is at fault, so report it plainly and without a traceback.

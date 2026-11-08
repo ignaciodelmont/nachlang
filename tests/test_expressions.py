@@ -251,3 +251,56 @@ def test_print_of_several_yields_the_last(nach):
 
 def test_print_of_nothing_yields_zero(nach):
     assert nach.output("def x print() print(x)") == [num(0)]
+
+
+# Arithmetic on anything but two numbers used to read the number field anyway,
+# which for a string is uninitialised memory, and printed nan. It is a runtime
+# error now: a message on stderr and exit status 1.
+@pytest.mark.parametrize(
+    "expression,message",
+    [
+        ('"a" + 1', "+ expects numbers, got string and number"),
+        ('1 + "a"', "+ expects numbers, got number and string"),
+        ('"a" - "b"', "- expects numbers, got string and string"),
+        ("true * 2", "* expects numbers, got bool and number"),
+        ("4 / false", "/ expects numbers, got number and bool"),
+    ],
+)
+def test_arithmetic_on_the_wrong_kind_is_a_runtime_error(nach, expression, message):
+    result = nach.run(f"print({expression})")
+    assert result.returncode == 1
+    assert f"runtime error: {message}" in result.stderr
+    assert result.stdout == ""
+
+
+def test_output_printed_before_a_runtime_error_is_kept(nach):
+    result = nach.run('print(1) print("a" + 1) print(2)')
+    assert result.returncode == 1
+    assert result.stdout.splitlines() == [num(1)]
+    assert "runtime error" in result.stderr
+
+
+def test_runtime_error_inside_a_function(nach):
+    result = nach.run('defn f(x) { return x + 1 } print(f("oops"))')
+    assert result.returncode == 1
+    assert "+ expects numbers, got string and number" in result.stderr
+
+
+def test_runtime_error_is_not_labelled_internal(nach):
+    result = nach.run('print("a" + 1)')
+    assert "internal error" not in result.stderr
+
+
+@pytest.mark.parametrize("level", ["0", "3"])
+def test_runtime_error_fires_at_every_optimisation_level(nach, level):
+    result = nach.run('print("a" + 1)', "--opt-level", level)
+    assert result.returncode == 1
+    assert "runtime error" in result.stderr
+
+
+def test_logical_operators_and_comparisons_still_accept_any_kind(nach):
+    assert nach.output('print("a" and 1) print(1 or "b") print("a" == 1)') == [
+        num(1),
+        num(1),
+        FALSE,
+    ]

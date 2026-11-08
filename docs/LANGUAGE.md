@@ -180,9 +180,19 @@ print(8 / 2 / 2)
 Division by zero does not raise. It follows IEEE 754: `1 / 0` is `inf` and
 `0 / 0` is `nan`.
 
-Arithmetic on a non-number is **not checked**. Applying `+` to a string reads
-the string's unused number field and yields `nan` silently. Runtime type
-checks are on the to-do list.
+Arithmetic on anything but two numbers is a **runtime error**. The program
+stops with a message on standard error and exit status 1, after flushing
+whatever it has already printed:
+
+```
+runtime error: + expects numbers, got string and number
+```
+
+This is the one check the runtime performs. `and`, `or`, the comparisons and
+`is_truthy` accept values of any kind. The check can be switched off with
+`--no-runtime-checks`, which restores the old behaviour -- the string's unused
+number field is read and the result is `nan` -- and exists so that its cost
+can be measured; see `bench/RESULTS.md`.
 
 ### Comparison
 
@@ -491,7 +501,8 @@ print(x)
 Errors are written to standard error, never mixed into the program's output,
 and the process exits with status 1. Errors in the program are reported
 plainly; a failure inside the compiler is prefixed `internal error:` so the
-two are not confused.
+two are not confused. A runtime error is reported the same way, prefixed
+`runtime error:`, after the output printed so far has been flushed.
 
 | situation | message |
 |---|---|
@@ -505,14 +516,13 @@ two are not confused.
 | duplicate function | `'f' is already defined` |
 | wrong arity | `'f' takes 2 argument(s), got 1` |
 | return outside a function | `line 1, column 1: 'return' outside of a function` |
+| arithmetic on a non-number | `runtime error: + expects numbers, got string and number` |
 
 A program that runs to completion exits with status 0.
 
 ## Known limitations
 
-The compiler has no runtime type checking, so operations on values of the
-wrong kind produce garbage rather than errors. Apart from that, the gaps in
-the language as implemented are:
+The gaps in the language as implemented are:
 
 - No negative or decimal literals, no `not`, no `break`, no `else if`.
 - No string operations beyond printing and comparison: no concatenation,
